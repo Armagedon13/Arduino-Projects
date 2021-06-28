@@ -1,0 +1,12 @@
+Light	KEYWORD1
+on	KEYWORD2
+off	KEYWORD2
+isOn	KEYWORD2
+isOff	KEYWORD2
+update	KEYWORD2
+setBrightness	KEYWORD2
+setBrightnessPercent	KEYWORD2
+getBrightness		KEYWORD2
+getBrightnessPercent	KEYWORD2
+blink	KEYWORD2
+fade	KEYWORD2

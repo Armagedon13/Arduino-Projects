@@ -1,0 +1,26 @@
+#######################################
+# Syntax Coloring Map For DWEasyFlipFlop
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+DWEasyFlipFlop	KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+loop		KEYWORD2
+setFlipDelay	KEYWORD2
+setFlopDelay	KEYWORD2
+getFlipDelay	KEYWORD2
+getFlipDelay	KEYWORD2
+setFlipHandler	KEYWORD2
+setFlopHandler	KEYWORD2
+start		KEYWORD2
+
+#######################################
+# Constants (LITERAL1)
+#######################################

@@ -1,0 +1,3 @@
+Temporizador	KEYWORD1
+temporizar	KEYWORD2
+completado	KEYWORD2

@@ -14,7 +14,7 @@
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of IRMP https://github.com/ukw100/IRMP.
- *  This file is part of Arduino-IRremote https://github.com/z3t0/Arduino-IRremote.
+ *  This file is part of Arduino-IRremote https://github.com/Arduino-IRremote/Arduino-IRremote.
  *
  *  IRMP is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -48,7 +48,7 @@ void setup()
     pinMode(LED_BUILTIN, OUTPUT);
     Serial.begin(115200);
 #if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL) || defined(ARDUINO_attiny3217)
-    delay(2000); // To be able to connect Serial monitor after reset or power up and before first printout
+    delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
     // Just to know which program is running on my Arduino
     Serial.println(F("START " __FILE__ " from " __DATE__));
@@ -174,7 +174,7 @@ void loop()
             Serial.print(MarkAndShortSpaceAverage);
             Serial.print(F("us   Delta (to NEC standard 560)="));
             Serial.print(MarkAndShortSpaceAverage - 560);
-            Serial.print(F("us\r\n Mark - Average -> MarkExcess="));
+            Serial.print(F("us\r\n Mark - Average -> MARK_EXCESS_MICROS="));
             Serial.print((int16_t) Mark.average - MarkAndShortSpaceAverage);
             Serial.print(F("us"));
             Serial.println();
@@ -208,11 +208,7 @@ void measureTimingISR()
      * read level and give feedback
      */
     uint8_t tInputLevel = digitalRead(IR_INPUT_PIN);
-#if defined(__AVR_ATtiny3217__)
-    digitalWrite(LED_BUILTIN, (PinStatus)!tInputLevel);
-#else
     digitalWrite(LED_BUILTIN, !tInputLevel);
-#endif
 
     if (tMicrosDelta > 10000)
     {

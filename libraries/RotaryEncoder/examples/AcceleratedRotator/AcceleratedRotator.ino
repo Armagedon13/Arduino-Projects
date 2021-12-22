@@ -7,106 +7,114 @@
 // -----
 // 18.01.2014 created by Matthias Hertel
 // 13.11.2019 converted to AcceleratedRotator by Damian Philipp
+// 06.02.2021 conditions and settings added for ESP8266
 // -----
 
 // This example checks the state of the rotary encoder in the loop() function.
 // It then computes an acceleration value and prints the current position when changed.
+// There is detailed output given to the Serial.
+// You may play around with the constants to fit to your needs.
 
 // Hardware setup:
-// Attach a rotary encoder with output pins to A2 and A3.
+// Attach a rotary encoder with output pins to
+// * 2 and 3 on Arduino UNO.
+// * A2 and A3 can be used when directly using the ISR interrupts, see comments below.
+// * D5 and D6 on ESP8266 board (e.g. NodeMCU).
+// Swap the pins when direction is detected wrong.
 // The common contact should be attached to ground.
 
+#include <Arduino.h>
 #include <RotaryEncoder.h>
 
-// Setup a RoraryEncoder for pins A2 and A3:
-RotaryEncoder encoder(A2, A3);
+#if defined(ARDUINO_AVR_UNO) || defined(ARDUINO_AVR_NANO_EVERY)
+// Example for Arduino UNO with input signals on pin 2 and 3
+#define PIN_IN1 2
+#define PIN_IN2 3
+
+#elif defined(ESP8266)
+// Example for ESP8266 NodeMCU with input signals on pin D5 and D6
+#define PIN_IN1 D5
+#define PIN_IN2 D6
+
+#endif
+
+// Setup a RotaryEncoder with 4 steps per latch for the 2 signal input pins:
+// RotaryEncoder encoder(PIN_IN1, PIN_IN2, RotaryEncoder::LatchMode::FOUR3);
+
+// Setup a RotaryEncoder with 2 steps per latch for the 2 signal input pins:
+RotaryEncoder encoder(PIN_IN1, PIN_IN2, RotaryEncoder::LatchMode::TWO03);
 
 // Define some constants.
-// at 500ms, there should be no acceleration.
-constexpr const unsigned long kAccelerationLongCutoffMillis = 500;
-// at 4ms, we want to have maximum acceleration
-constexpr const unsigned long kAccelerationShortCutffMillis = 4;
-// linear acceleration: incline
-constexpr static const float m = -0.16;
-// linear acceleration: y offset
-constexpr static const float c = 84.03;
 
-/* To derive these constants, compute as follows:
- * * On an x-y-plane, let x be the time between rotations.
- * * On an x-y-plane, let y be the accelerated number of rotations.
- * * Select a long cuttoff. If two encoder rotations happen longer apart than the cutoff,
- *   they are not accelerated anymore. Without the long cutoff, not moving the encoder for a while
- *   will make the value jump by extreme amounts (possibly in the wrong direction) on the next rotation.
- * * Select a short cutoff. This limits the maximum acceleration. While an infinite acceleration is
- *   not really a problem, it is unrealistic to achieve (how quickly can you tick the encoder?) and
- *   not having it causes headaches when computing the actual acceleration ;)
- *   Pick two points defining your acceleration. At x2=(long cutoff), you want y2=1 (No acceleration happened).
- *   At x1=(short cutoff) you want y1=(maximum accelerated number of ticks).
- *   Then, compute m and c using high school math (or google for "straight line through two points").
- * 
- *   The numbers given in this example are tailored for the following conditions:
- *   * An encoder with 24 increments per 360 degrees
- *   * A useful range of 0..1000 rotations
- *   * Making a 180 degree rotation (12 increments) on the encoder within 50ms will hit
- *     the opposite end of the range.
- * 
- *   Please do not rely on these exact numbers. Recompute them for your usecase and verify
- *   them with a physical test. A 4ms timing is fairly tight for many controllers. Depending on your
- *   controller and application, you might not be able to sample the encoder quickly enough to achieve this.
- */
+// the maximum acceleration is 10 times.
+constexpr float m = 10;
+
+// at 200ms or slower, there should be no acceleration. (factor 1)
+constexpr float longCutoff = 50;
+
+// at 5 ms, we want to have maximum acceleration (factor m)
+constexpr float shortCutoff = 5;
+
+// To derive the calc. constants, compute as follows:
+// On an x(ms) - y(factor) plane resolve a linear formular factor(ms) = a * ms + b;
+// where  f(4)=10 and f(200)=1
+
+constexpr float a = (m - 1) / (shortCutoff - longCutoff);
+constexpr float b = 1 - longCutoff * a;
+
+// a global variables to hold the last position
+static int lastPos = 0;
 
 void setup()
 {
-  Serial.begin(57600);
+  Serial.begin(115200);
+  while (!Serial)
+    ;
+
   Serial.println("AcceleratedRotator example for the RotaryEncoder library.");
+  Serial.print("a=");
+  Serial.println(a);
+  Serial.print("b=");
+  Serial.println(b);
 } // setup()
 
 
 // Read the current position of the encoder and print out when changed.
 void loop()
 {
-  static int pos = 0;
-  static RotaryEncoder::Direction lastMovementDirection = RotaryEncoder::Direction::NOROTATION;
   encoder.tick();
 
   int newPos = encoder.getPosition();
-  if (pos != newPos) {
+  if (lastPos != newPos) {
 
-    // compute linear acceleration
-    RotaryEncoder::Direction currentDirection = encoder.getDirection();
-    if (currentDirection == lastMovementDirection && 
-        currentDirection != RotaryEncoder::Direction::NOROTATION &&
-        lastMovementDirection != RotaryEncoder::Direction::NOROTATION) {
-      // ... but only of the direction of rotation matched and there
-      // actually was a previous rotation.
-      unsigned long deltat = encoder.getMillisBetweenRotations();
+    // accelerate when there was a previous rotation in the same direction.
 
-      if (deltat < kAccelerationLongCutoffMillis) {
-        if (deltat < kAccelerationShortCutffMillis) {
-          // limit to maximum acceleration
-          deltat = kAccelerationShortCutffMillis;
-        }
+    unsigned long ms = encoder.getMillisBetweenRotations();
 
-        float ticksActual_float = m * deltat + c;
-        // Round by adding 1
-        // Then again remove 1 to determine the actual delta to the encoder
-        // value, as the encoder already ticked by 1 tick in the correct
-        // direction. Thus, just cast to an integer type.
-        long deltaTicks = (long)ticksActual_float;
+    if (ms < longCutoff) {
+      // do some acceleration using factors a and b
 
-        // Adjust sign: Needs to be inverted for counterclockwise operation
-        if (currentDirection == RotaryEncoder::Direction::COUNTERCLOCKWISE) {
-          deltaTicks = -(deltaTicks);
-        }
-
-        newPos = newPos + deltaTicks;
-        encoder.setPosition(newPos);
+      // limit to maximum acceleration
+      if (ms < shortCutoff) {
+        ms = shortCutoff;
       }
+
+      float ticksActual_float = a * ms + b;
+      Serial.print("  f= ");
+      Serial.println(ticksActual_float);
+
+      long deltaTicks = (long)ticksActual_float * (newPos - lastPos);
+      Serial.print("  d= ");
+      Serial.println(deltaTicks);
+
+      newPos = newPos + deltaTicks;
+      encoder.setPosition(newPos);
     }
 
     Serial.print(newPos);
-    Serial.println();
-    pos = newPos;
+    Serial.print("  ms: ");
+    Serial.println(ms);
+    lastPos = newPos;
   } // if
 } // loop ()
 

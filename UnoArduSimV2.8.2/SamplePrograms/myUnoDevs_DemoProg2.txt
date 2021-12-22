@@ -1,0 +1,24 @@
+Push Button 1 wired to pin -1 with values D, M
+Push Button 2 wired to pin -1 with values D, M
+Slide Switch 1 wired to pin -1 with value D
+Slide Switch 2 wired to pin -1 with value D
+Slide Switch 3 wired to pin -1 with value D
+Slide Switch 4 wired to pin -1 with value D
+Piezo Speaker 1 wired to pin 8 
+Piezo Speaker 2 wired to pin -1 
+Coloured LED 1 wired to pin 2 with values D, G
+Coloured LED 2 wired to pin 3 with values D, Y
+Coloured LED 3 wired to pin 4 with values D, R
+Coloured LED 4 wired to pin 5 with values D, G
+Coloured LED 5 wired to pin 6 with values D, Y
+Coloured LED 6 wired to pin 7 with values D, R
+Analog Slider 1 wired to pin -1 
+Analog Slider 2 wired to pin A0 
+Servo Motor 1 wired to pin 9 
+Servo Motor 2 wired to pin 10 
+Servo Motor 3 wired to pin 11 
+Servo Motor 4 wired to pin 12 
+DC Motor 1 wired to pins 13 , A0 , -1 
+DC Motor 2 wired to pins 13 , A1 , -1 
+DC Motor 3 wired to pins 13 , A0 , -1 
+DC Motor 4 wired to pins 13 , A1 , -1 

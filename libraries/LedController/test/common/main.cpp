@@ -1,13 +1,14 @@
 #include "Move.hpp"
-#include "Reverse.hpp"
+#include "transformation.hpp"
+#include "config.hpp"
+#include "display.hpp"
 
-void process(){
+void process() {
     UNITY_BEGIN();
-    RUN_TEST(test_reverse_simple);
-    RUN_TEST(reverse_Block);
-
+    run_display_tests();
+    run_config_tests();
+    run_transformation_tests();
     run_move_tests();
-    run_move_multi_tests();
     UNITY_END();
 }
 

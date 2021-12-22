@@ -1,0 +1,16 @@
+Push Button 1 wired to pin 4 with values D, M
+Slide Switch 1 wired to pin -1 with value D
+Slide Switch 2 wired to pin -1 with value D
+Slide Switch 3 wired to pin -1 with value D
+Slide Switch 4 wired to pin -1 with value D
+Piezo Speaker 1 wired to pin 2 
+Piezo Speaker 2 wired to pin 3 
+Piezo Speaker 3 wired to pin 4 
+Coloured LED 1 wired to pin 2 with values D, Y
+Coloured LED 2 wired to pin 3 with values D, Y
+Coloured LED 3 wired to pin 4 with values D, G
+Coloured LED 4 wired to pin 5 with values D, G
+USB Serial 1 wired to pins 1 , 0 with value 9600
+Digital Pulser 1 wired to pin 6 with values R, 1000, 10000, U, U
+Oneshot Generator 1 wired to pins 2 , 3 with values R, R, 80000, 50000, U, U
+Oneshot Generator 2 wired to pins 4 , 5 with values R, R, 40000, 100000, U, U

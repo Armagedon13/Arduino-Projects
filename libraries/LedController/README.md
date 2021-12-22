@@ -2,10 +2,9 @@
 
 [![GitHub license](https://img.shields.io/github/license/noah1510/LedController.svg)](https://github.com/noah1510/LedController/blob/master/License)
 ![pre-release](https://github.com/noah1510/LedController/workflows/pre-release/badge.svg)
-[![code quality](https://www.code-inspector.com/project/5318/score/svg)](https://frontend.code-inspector.com/project/5318/dashboard)
-[![Discord](https://discordapp.com/api/guilds/691968013234339881/widget.png)](https://discord.gg/awjW3aG)
+[![code quality](https://www.code-inspector.com/project/8566/score/svg)](https://frontend.code-inspector.com/project/5318/dashboard)
 [![stable release](https://img.shields.io/github/v/release/noah1510/LedController.svg)](https://GitHub.com/noah1510/LedController/releases/)
-[![gitter](https://badges.gitter.im/LedControllerN/community.svg)](https://gitter.im/LedControllerN/community/)
+[![arduino-library-badge](https://www.ardu-badge.com/badge/LedController.svg?)](https://www.ardu-badge.com/LedController)
 
 LedController is an [Arduino](http://arduino.cc) library for MAX7219 and MAX7221 Led display drivers.
 The code should work with most boards and architectures but I only test it for the ESP32 Dev Module.
@@ -20,27 +19,23 @@ Whatever questions or suggestions you have, please provide detailed information 
 
 If you have a feature request or find issues, feel free to open an issue on github.
 
-For questions that are not bugs or feature requests please start a new [discussion
-](https://github.com/noah1510/LedController/discussions).
+For questions that are not bugs or feature requests please start a new [discussion](https://github.com/noah1510/LedController/discussions).
+
+Also help with more translations is welcome.
+At the moment the documentation is in German and English.
 
 ## Supported boards
 
 The CI automatically tests the following boards(PlatformIO boards names):
 
-* esp32dev
-* d1_mini
-* uno
-* ATmega1280
-* leonardo
-
-The following boards were able to compile on my machine once:
-
-* nano_every
-
-The following boards do **not** work at the moment:
-
-* due
-* genuino101
+- esp32dev
+- d1_mini
+- uno
+- ATmega1280
+- leonardo
+- due (since 2.0.0)
+- teensy41 (since 2.0.0)
+- bluefruitmicro (since 2.0.0)
 
 All help regarding compatibility with more boards is welcome.
 
@@ -52,11 +47,12 @@ You might need changes when migrating with the following transitions:
 * 1.x.y to 2.0.x
 
 Since 2.0.0 is a huge release you will definatly need changes to your code to get it working with that version.
-For information on what needs to be done to transition from one version to another check out the [migration notes](https://noah1510.github.io/LedController/da/dc8/md_doc_migration_notes.html)
+For information on what needs to be done to transition from one version to another check out the [migration notes](https://noah1510.github.io/LedController/english/d9/dbb/migration_notes.html)
 
 ## Documentation
 
-Documentation for the library is on the [Github Project Pages](http://noah1510.github.io/LedController/)
+Documentation for the library is on the [Github Project Pages](http://noah1510.github.io/LedController/index.html).
+It is available in [German](http://noah1510.github.io/LedController/german/index.html) and [English](http://noah1510.github.io/LedController/english/index.html).
 
 ## Download
 

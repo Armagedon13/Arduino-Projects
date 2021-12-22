@@ -7,7 +7,7 @@
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of IRMP https://github.com/ukw100/IRMP.
- *  This file is part of Arduino-IRremote https://github.com/z3t0/Arduino-IRremote.
+ *  This file is part of Arduino-IRremote https://github.com/Arduino-IRremote/Arduino-IRremote.
  *
  *  IRMP is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -29,8 +29,8 @@
 #define USE_TINY_IR_RECEIVER_INSTEAD_OF_IRMP // saves 1150 bytes programming space and 38 bytes RAM
 
 #if defined(USE_TINY_IR_RECEIVER_INSTEAD_OF_IRMP)
-#define USE_TINY_IR_RECEIVER // must be specified before including IRCommandDispatcher.cpp.h to define which IR library to use
-//#define TINY_RECEICER_USE_ARDUINO_ATTACH_INTERRUPT // costs 112 bytes FLASH + 4bytes RAM
+#define USE_TINY_IR_RECEIVER // must be specified before including IRCommandDispatcher.hpp to define which IR library to use
+//#define TINY_RECEIVER_USE_ARDUINO_ATTACH_INTERRUPT // costs 112 bytes FLASH + 4bytes RAM
 
 /*
  * Helper macro for getting a macro definition as string
@@ -41,7 +41,7 @@
  * First: set input pin and other definition.
  */
 #if defined(__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny85__) || defined(__AVR_ATtiny87__) || defined(__AVR_ATtiny167__)
-#include "ATtinySerialOut.h"
+#include "ATtinySerialOut.hpp" // Available as Arduino library "ATtinySerialOut"
 #  if defined(ARDUINO_AVR_DIGISPARKPRO)
 #define IR_INPUT_PIN    9 // PA3 - on Digispark board labeled as pin 9
 #  else
@@ -60,12 +60,12 @@
 #endif
 
 #else // defined(USE_TINY_IR_RECEIVER_INSTEAD_OF_IRMP)
-#define USE_IRMP_LIBRARY // must be specified before including IRCommandDispatcher.cpp.h to define which IR library to use
+#define USE_IRMP_LIBRARY // must be specified before including IRCommandDispatcher.hpp to define which IR library to use
 
 #include "PinDefinitionsAndMore.h"
 #define IR_RECEIVER_PIN     IRMP_INPUT_PIN
-#if defined(ALTERNATIVE_IRMP_FEEDBACK_LED_PIN)
-#define FEEDBACK_LED_PIN    ALTERNATIVE_IRMP_FEEDBACK_LED_PIN
+#if defined(ALTERNATIVE_IR_FEEDBACK_LED_PIN)
+#define FEEDBACK_LED_PIN    ALTERNATIVE_IR_FEEDBACK_LED_PIN
 #endif
 
 //#define IRMP_ENABLE_PIN_CHANGE_INTERRUPT   // Enable interrupt functionality - requires around 376 additional bytes of program space
@@ -76,13 +76,13 @@
 
 #define IRMP_SUPPORT_NEC_PROTOCOL        1 // this enables only one protocol
 
-#  ifdef ALTERNATIVE_IRMP_FEEDBACK_LED_PIN
-#define IRMP_FEEDBACK_LED_PIN   ALTERNATIVE_IRMP_FEEDBACK_LED_PIN
+#  ifdef ALTERNATIVE_IR_FEEDBACK_LED_PIN
+#define IRMP_FEEDBACK_LED_PIN   ALTERNATIVE_IR_FEEDBACK_LED_PIN
 #  endif
 /*
  * After setting the definitions we can include the code and compile it.
  */
-#include <irmp.c.h>
+#include <irmp.hpp>
 void handleReceivedIRData();
 #endif // defined(USE_TINY_IR_RECEIVER_INSTEAD_OF_IRMP)
 
@@ -105,8 +105,8 @@ void doTone2200();
  */
 #define INFO // to see some informative output
 #include "IRCommandDispatcher.h" // Only for required declarations, the library itself is included below after the definitions of the commands
-#include "IRCommandMapping.h" // must be included before IRCommandDispatcher.cpp.h to define IR_ADDRESS and IRMapping and string "unknown".
-#include "IRCommandDispatcher.cpp.h"
+#include "IRCommandMapping.h" // must be included before IRCommandDispatcher.hpp to define IR_ADDRESS and IRMapping and string "unknown".
+#include "IRCommandDispatcher.hpp"
 
 void irmp_tone(uint8_t _pin, unsigned int frequency, unsigned long duration);
 
@@ -115,7 +115,7 @@ void setup()
     pinMode(LED_BUILTIN, OUTPUT);
     Serial.begin(115200);
 #if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL) || defined(ARDUINO_attiny3217)
-    delay(2000); // To be able to connect Serial monitor after reset or power up and before first printout
+    delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
 #if defined(ESP8266)
     Serial.println(); // to separate it from the internal boot output
@@ -123,7 +123,7 @@ void setup()
 
     // Just to know which program is running on my Arduino
 #if defined(USE_TINY_IR_RECEIVER_INSTEAD_OF_IRMP)
-    Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing TinyIRReceiver.cpp.h"));
+    Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing TinyIRReceiver.hpp"));
 #else
     Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing library version " VERSION_IRMP));
 #endif
@@ -149,9 +149,9 @@ void setup()
     Serial.println(F("at pin " STR(IRMP_INPUT_PIN)));
 #  endif
 
-#  ifdef ALTERNATIVE_IRMP_FEEDBACK_LED_PIN
-    irmp_irsnd_LEDFeedback(true); // Enable receive signal feedback at ALTERNATIVE_IRMP_FEEDBACK_LED_PIN
-    Serial.print(F("IR feedback pin is " STR(ALTERNATIVE_IRMP_FEEDBACK_LED_PIN)));
+#  ifdef ALTERNATIVE_IR_FEEDBACK_LED_PIN
+    irmp_irsnd_LEDFeedback(true); // Enable receive signal feedback at ALTERNATIVE_IR_FEEDBACK_LED_PIN
+    Serial.print(F("IR feedback pin is " STR(ALTERNATIVE_IR_FEEDBACK_LED_PIN)));
 #  endif
 #endif
 

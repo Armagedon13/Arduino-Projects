@@ -1,0 +1,23 @@
+Push Button 1 wired to pin -1 with values D, M
+Push Button 2 wired to pin 5 with values U, M
+Slide Switch 1 wired to pin 9 with value U
+Slide Switch 2 wired to pin -1 with value D
+Slide Switch 3 wired to pin -1 with value D
+Slide Switch 4 wired to pin -1 with value D
+Piezo Speaker 1 wired to pin 8 
+Piezo Speaker 2 wired to pin 3 
+Coloured LED 1 wired to pin 2 with values U, R
+Coloured LED 2 wired to pin 3 with values D, Y
+Coloured LED 3 wired to pin 4 with values D, G
+Coloured LED 4 wired to pin 5 with values D, R
+Coloured LED 5 wired to pin 6 with values D, Y
+Coloured LED 6 wired to pin 7 with values D, G
+Analog Slider 1 wired to pin A0 
+Analog Slider 2 wired to pin A1 
+USB Serial 1 wired to pins 1, 0 with value 300
+SPI Slave 1 wired to pins 11, 12, 10, 13 
+Servo Motor 1 wired to pin 9 
+DC Motor 1 wired to pins 6, 7, 2 
+Stepper Motor 1 wired to pins 3 , 4 with value 60
+Digital Pulser 1 wired to pin 6 with values R, 50000, 100000, S, U
+Function Generator 1 wired to pin A2 with values T, 100000, U

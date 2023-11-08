@@ -1,0 +1,27 @@
+{
+  "name": "Modbus-Arduino",
+  "version": "1.3.0",
+  "keywords": "modbus, server, slave, rtu, tcp, wireless, radio",
+  "description": "A library that allows your Arduino to communicate via Modbus protocol, acting as a slave. Application layer library (OSI 7), used by all implementations over serial line and TCP/IP.",
+  "homepage": "https://epsilonrt.github.io/modbus-arduino",
+  "authors":
+  [
+    {
+      "name": "Pascal JEAN aka epsilonrt",
+      "url": "https://github.com/epsilonrt",
+      "maintainer": true
+    },
+    {
+      "name": "André Sarmento Barbosa",
+      "url": "https://github.com/andresarmento"
+    }
+  ],
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/epsilonrt/modbus-arduino.git"
+  },
+  "license": "BSD-3-Clause",
+  "frameworks": "arduino",
+  "platforms": "*"
+}

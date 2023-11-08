@@ -2,7 +2,137 @@
 The latest version may not be released!
 See also the commit log at github: https://github.com/Arduino-IRremote/Arduino-IRremote/commits/master
 
-## 3.4.1
+# 4.2.0
+- The old decode function is renamed to decode_old(decode_results *aResults). decode (decode_results *aResults) is only available in IRremote.h and prints a message.
+- Added DECODE_ONKYO, to force 16 bit command and data decoding.
+- Enable Bang&Olufsen 455 kHz if SEND_PWM_BY_TIMER is defined.
+- Fixed bug: TinyReceiver throwing ISR not in IRAM on ESP8266.
+- Usage of ATTinyCore pin numbering scheme e.g. PIN_PB2.
+- Added ARDUINO_ARCH_NRF52 to support Seeed XIAO nRF52840 Sense.
+- First untested support of Uno R4.
+- Extraced version macros to IRVersion.h.
+
+## 4.1.2
+- Workaround for ESP32 RTOS delay() timing bug influencing the mark() function.
+
+## 4.1.1
+- SAMD51 use timer3 if timer5 not available.
+- Disabled #define LOCAL_DEBUG in IRReceive.hpp, which was accidently enabled at 4.1.0.
+
+## 4.1.0
+- Fixed bug in printing durations > 64535 in printIRResultRawFormatted().
+- Narrowed constraints for RC5 RC6 number of bits.
+- Changed the first parameter of printTinyReceiverResultMinimal() to &Serial.
+- Removed 3 Serial prints for deprecation warnings to fix #1094.
+- Version 1.2.0 of TinyIR. Now FAST protocol with 40 ms period and shorter header space.
+- Removed field "bool hasStopBit" and parameter "bool aSendStopBit" from PulseDistanceWidthProtocolConstants structure and related functions.
+- Changed a lot of "unsigned int" types to "uint16_t" types.
+- Improved overflow handling.
+- Improved software PWM generation.
+- Added FAST protocol.
+- Improved handling of PULSE_DISTANCE + PULSE_WIDTH protocols.
+- New example ReceiveAndSendDistanceWidth.
+- Removed the automatic restarting of the receiver timer after sending with SEND_PWM_BY_TIMER enabled.
+- Split ISR into ISR and function IRPinChangeInterruptHandler().
+- Added functions addTicksToInternalTickCounter() and addMicrosToInternalTickCounter().
+
+## 4.0.0
+- Added decoding of PulseDistanceWidth protocols and therefore changed function decodeDistance() to decodeDistanceWidth() and filename ir_DistanceProtocol.hpp to ir_DistanceWidthProtocol.hpp.
+- Removed static function printIRSendUsage(), but kept class function printIRSendUsage().
+- Changed type of decodedRawData and decodedRawDataArray which is now 64 bit for 32 bit platforms.
+- Added receiver callback functionality and registerReceiveCompleteCallback() function.
+- Introduced common structure PulseDistanceWidthProtocolConstants.
+- Where possible, changed all send and decode functions to use PulseDistanceWidthProtocolConstants.
+- Improved MSB/LSB handling
+- New convenience fuctions bitreverse32Bit() and bitreverseOneByte().
+- Improved Magiquest protocol.
+- Fix for #1028 - Prevent long delay caused by overflow when frame duration < repeat period - Thanks to Stephen Humphries!
+- Support for ATtiny816 - Thanks to elockman.
+- Added Bang&Olufsen protocol. #1030.
+- Third parameter of function "void begin(uint_fast8_t aSendPin, bool aEnableLEDFeedback, uint_fast8_t aFeedbackLEDPin)" is not optional anymore and this function is now only available if IR_SEND_PIN is not defined. #1033.
+- Fixed bug in sendSony() for command parameter > 0x7F;
+- Fixed bug with swapped LG2 header mark and space.
+- Disabled strict checks while decoding. They can be enabled by defining DECODE_STRICT_CHECKS.
+- Merged the 2 decode pulse width and distance functions.
+- Changed macro names _REPEAT_SPACE to _REPEAT_DISTANCE.
+- Improved TinyIRReceiver,added FAST protocol for it and added TinyIRSender.hpp and TinySender example, renamed TinyReceiver.h to TinyIR.h.
+- Added DISABLE_CODE_FOR_RECEIVER to save program memory and RAM if receiving functionality is not required.
+- Extracted protocol functions used by receive and send to IRProtocol.hpp.
+- Analyzed Denon code table and therefore changed Denon from MSB to LSB first.
+- Renamed sendRC6(aRawData...) to sendRC6Raw( aRawData...).
+- Support for seeduino which lacks the print(unsigned long long...) method. Thanks to sklott https://stackoverflow.com/users/11680056/sklott
+- Added support for attiny1614 by Joe Ostrander.
+- Fixed SEND_PWM_BY_TIMER for ATtiny167 thanks to freskpe.
+- Improved SHARP repeat decoding.
+- Replaced macros TIMER_EN/DISABLE_RECEIVE_INTR and EN/DISABLE_SEND_PWM_BY_TIMER by functions.
+- Added SAMSUNG48 protocol and sendSamsung48() function.
+
+## 3.9.0
+- Improved documentation with the help of [ElectronicsArchiver}(https://github.com/ElectronicsArchiver).
+- Added NEC2 protocol.
+- Improved Magiquest protocol.
+- Renamed sendSamsungRepeat() to sendSamsungLGRepeat().
+- Added function sendPulseDistanceWidth().
+- Improved repeat detection for some protocols.
+
+## 3.8.0
+- Changed Samsung repeat handling. Old handling is available as SamsungLG.
+- Added function printIRSendUsage().
+- Reduced output size and improved format of printIRResultRawFormatted() to fasten up output (and getting repeats properly decoded).
+- Fixed Bug in sendDenonRaw() and improved decodeDenon().
+- Fixed potential bug in SendBiphase data for 1 bit.
+- Fixed bug in send for RP4020.
+- Fixed pin mapping problems especially for Teensy 2.0.
+- Added support for decoding of "special" NEC repeats.
+- Added SAMD51 support.
+- Improved pin mapping for TinyReceiver.
+
+## 3.7.1
+- SendRaw now supports bufferlenght > 255.
+- Improved DistanceProtocol decoder output.
+- Fixed ESP32 send bug for 2.x ESP32 cores.
+
+## 3.7.0
+- Changed TOLERANCE to TOLERANCE_FOR_DECODERS_MARK_OR_SPACE_MATCHING and documented it.
+- Changed last uint8_t to uint_fast8_t and uint16_t to unsigned integer.
+- Improved MagiQuest protocol.
+- Improved prints and documentation.
+- Added IrReceiver.restartAfterSend() and inserted it in every send(). Closes #989
+- Use IRAM_ATTR instead of deprecated ICACHE_RAM_ATTR for ESP8266.
+- Removed pulse width decoding from ir_DistanceProtocol.
+
+## 3.6.1
+- Switched Bose internal protocol timing for 0 and 1 -> old 1 timing is now 0 and vice versa.
+
+## 3.6.0
+- Separated enable flag of send and receive feedback LED. Inspired by PR#970 from luvaihassanali.
+- RP2040 support added.
+- Refactored IRTimer.hpp.
+- Refactored IR_SEND_PIN and IrSender.sendPin handling.
+- Renamed IR_SEND_DUTY_CYCLE to IR_SEND_DUTY_CYCLE_PERCENT.
+- Fixed bugs for SEND_PWM_BY_TIMER active.
+
+## 3.5.2
+- Improved support for Teensy boards by Paul Stoffregen.
+
+## 3.5.1
+- Renamed INFO_PRINT to IR_INFO_PRINT as well as for DEBUG and TRACE.
+- Fixed error with DEBUG in TinyIRReceiver.hpp.
+- Support for ATmega88 see issue #923. Thanks to Dolmant.
+- NO_LED_FEEDBACK_CODE replaces and extends DISABLE_LED_FEEDBACK_FOR_RECEIVE.
+- Removed NO_LEGACY_COMPATIBILITY macro, it was useless now.
+- Fix ESP32 send bug see issue #927.
+
+## 3.5.0
+- Improved ir_DistanceProtocol.
+- Tone for ESP32.
+- last phase renamed *.cpp.h to .hpp.
+- No deprecation print for ATtinies.
+- Renamed ac_LG.cpp to ac_LG.hpp.
+- Maintained MagiQuest by E. Stuart Hicks.
+- Improved print Pronto by Asuki Kono.
+- Added printActiveIRProtocols() function.
+- Used IR_SEND_PIN to reduce code size and improved send timing for AVR.
 
 ## 3.4.0
 - Added LG2 protocol.
@@ -13,7 +143,7 @@ See also the commit log at github: https://github.com/Arduino-IRremote/Arduino-I
 - Moved blink13() back to IRrecv class.
 - Added Kaseikyo convenience functions like sendKaseikyo_Denon().
 - Improved / adjusted LG protocol and added class Aircondition_LG based on real hardware supplied by makerspace 201 (https://wiki.hackerspaces.org/ZwoNullEins) from Cologne.
-- Improved universal decoder for pulse width or pulse distance protocols to support more than 32 bits.
+- Improved universal decoder for pulse distance protocols to support more than 32 bits.
 - Added mbed support.
 
 ## 3.3.0
@@ -21,7 +151,7 @@ See also the commit log at github: https://github.com/Arduino-IRremote/Arduino-I
 - Fixed error for AVR timer1. Thanks to alexbarcelo.
 - New example IRremoteExtensionTest.
 - Enabled megaAVR 0-series devices.
-- Added universal decoder for pulse width or pulse distance protocols.
+- Added universal decoder for pulse distance protocols.
 
 ## 3.2.0
 - Fix for ESP32 send Error, removed `USE_SOFT_SEND_PWM` macro.

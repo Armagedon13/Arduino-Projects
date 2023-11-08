@@ -7,6 +7,25 @@ This changlog uses the [ISO 8601 date format](https://www.iso.org/iso-8601-date-
 
 ## [Unreleased]
 
+## [2.8.4] - 2022-09-23
+
+### Fixed
+
+* Fix `library.properties`, so the latest version will appear in the library manager.
+
+## [2.8.3] - 2022-01-11
+
+### Added
+
+* Japanese Keyboard Layout [#332](https://github.com/NicoHood/HID/pull/332) (Thanks [@HisashiKato](https://github.com/HisashiKato))
+
+### Fixed
+
+* `SET_IDLE` uses wValueH for duration, not wValueL [#310](https://github.com/NicoHood/HID/pull/310) (Thanks [@mdevaev](https://github.com/mdevaev))
+* Handle `HID_HID_DESCRIPTOR_TYPE` properly [#311](https://github.com/NicoHood/HID/pull/311) (Thanks [@mdevaev](https://github.com/mdevaev))
+* Missing return value added to samd core [#342](https://github.com/NicoHood/HID/pull/342) (Thanks [@ladyada](https://github.com/ladyada))
+* Fixed German Layout [#323](https://github.com/NicoHood/HID/pull/323) (Thanks [@jensweimann](https://github.com/jensweimann))
+
 ## [2.8.2] - 2021-07-14
 
 ### Fixed
@@ -391,11 +410,14 @@ This changlog uses the [ISO 8601 date format](https://www.iso.org/iso-8601-date-
 
 * Initial Beta release
 
-[Unreleased]: https://github.com/NicoHood/HID/compare/2.8.2...HEAD
+[Unreleased]: https://github.com/NicoHood/HID/compare/2.8.4...HEAD
+[2.8.4]: https://github.com/NicoHood/HID/compare/2.8.3...2.8.4
+[2.8.3]: https://github.com/NicoHood/HID/compare/2.8.2...2.8.3
 [2.8.2]: https://github.com/NicoHood/HID/compare/2.8.1...2.8.2
 [2.8.1]: https://github.com/NicoHood/HID/compare/2.8.0...2.8.1
 [2.8.0]: https://github.com/NicoHood/HID/compare/2.7.0...2.8.0
-[2.7.0]: https://github.com/NicoHood/HID/compare/2.6.1...2.7.0
+[2.7.0]: https://github.com/NicoHood/HID/compare/2.6.2...2.7.0
+[2.6.2]: https://github.com/NicoHood/HID/compare/2.6.1...2.6.2
 [2.6.1]: https://github.com/NicoHood/HID/compare/2.6.0...2.6.1
 [2.6.0]: https://github.com/NicoHood/HID/compare/2.5.0...2.6.0
 [2.5.0]: https://github.com/NicoHood/HID/compare/2.4.4...2.5.0

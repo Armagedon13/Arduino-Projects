@@ -33,16 +33,14 @@
  */
 #include <Arduino.h>
 
-#if FLASHEND <= 0x1FFF  // For 8k flash or less, like ATtiny85. Exclude exotic protocols.
-#define EXCLUDE_UNIVERSAL_PROTOCOLS // Saves up to 1000 bytes program space.
+#include "PinDefinitionsAndMore.h" // Define macros for input and output pin etc.
+
+#if FLASHEND <= 0x1FFF || (RAMEND <= 0x4FF || RAMSIZE < 0x4FF)  // For 8k flash or 512 bytes RAM or less, like ATtiny85, ATtiny167
+#define EXCLUDE_UNIVERSAL_PROTOCOLS // Saves up to 1000 bytes program memory.
 #define EXCLUDE_EXOTIC_PROTOCOLS
 #endif
-/*
- * Define macros for input and output pin etc.
- */
-#include "PinDefinitionsAndMore.h"
 
-#include <IRremote.h>
+#include <IRremote.hpp>
 
 #if defined(APPLICATION_PIN)
 #define RELAY_PIN   APPLICATION_PIN
@@ -55,16 +53,18 @@ void setup() {
     pinMode(RELAY_PIN, OUTPUT);
 
     Serial.begin(115200);
-#if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL)  || defined(ARDUINO_attiny3217)
+#if defined(__AVR_ATmega32U4__) || defined(SERIAL_PORT_USBVIRTUAL) || defined(SERIAL_USB) /*stm32duino*/|| defined(USBCON) /*STM32_stm32*/|| defined(SERIALUSB_PID) || defined(ARDUINO_attiny3217)
     delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
     // Just to know which program is running on my Arduino
     Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing library version " VERSION_IRREMOTE));
 
-    IrReceiver.begin(IR_RECEIVE_PIN, ENABLE_LED_FEEDBACK); // Start the receiver, enable feedback LED, take LED feedback pin from the internal boards definition
+    // Start the receiver and if not 3. parameter specified, take LED_BUILTIN pin from the internal boards definition as default feedback LED
+    IrReceiver.begin(IR_RECEIVE_PIN, ENABLE_LED_FEEDBACK);
 
-    Serial.print(F("Ready to receive IR signals at pin "));
-    Serial.println(IR_RECEIVE_PIN);
+    Serial.print(F("Ready to receive IR signals of protocols: "));
+    printActiveIRProtocols(&Serial);
+    Serial.println(F("at pin " STR(IR_RECEIVE_PIN)));
 }
 
 int on = 0;
@@ -87,9 +87,11 @@ void loop() {
 
 #if FLASHEND >= 0x3FFF      // For 16k flash or more, like ATtiny1604
             IrReceiver.printIRResultShort(&Serial);
+            IrReceiver.printIRSendUsage(&Serial);
             Serial.println();
             if (IrReceiver.decodedIRData.protocol == UNKNOWN) {
                 // We have an unknown protocol, print more info
+                Serial.println(F("Received noise or an unknown (or not yet enabled) protocol"));
                 IrReceiver.printIRResultRawFormatted(&Serial, true);
             }
 #else

@@ -9,7 +9,7 @@
  ************************************************************************************
  * MIT License
  *
- * Copyright (c) 2020-2021 Armin Joachimsmeyer
+ * Copyright (c) 2020-2022 Armin Joachimsmeyer
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -42,22 +42,19 @@
 //#define USE_LG2_PROTOCOL // Try it if you do not have success with the default LG protocol
 #define NUMBER_OF_COMMANDS_BETWEEN_PRINT_OF_MENU 5
 
-/*
- * Define macros for input and output pin etc.
- */
-#include "PinDefinitionsAndMore.h"
+#define DISABLE_CODE_FOR_RECEIVER // Disables restarting receiver after each send. Saves 450 bytes program memory and 269 bytes RAM if receiving functions are not used.
 
-#include <IRremote.h>
-#include "ac_LG.h"
+#define INFO // Deactivate this to save program memory and suppress info output from the LG-AC driver.
+//#define DEBUG // Activate this for more output from the LG-AC driver.
+
+#include "PinDefinitionsAndMore.h" // Define macros for input and output pin etc.
+#include <IRremote.hpp>
 
 #if defined(__AVR_ATtiny25__) || defined(__AVR_ATtiny45__) || defined(__AVR_ATtiny85__) || defined(__AVR_ATtiny87__) || defined(__AVR_ATtiny167__)
 #include "ATtinySerialOut.hpp" // Available as Arduino library "ATtinySerialOut"
 #endif
 
-// On the Zero and others we switch explicitly to SerialUSB
-#if defined(ARDUINO_ARCH_SAMD)
-#define Serial SerialUSB
-#endif
+#include "ac_LG.hpp"
 
 #define SIZE_OF_RECEIVE_BUFFER 10
 char sRequestString[SIZE_OF_RECEIVE_BUFFER];
@@ -68,22 +65,22 @@ void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
 
     Serial.begin(115200);
-#if defined(__AVR_ATmega32U4__) || defined(SERIAL_USB) || defined(SERIAL_PORT_USBVIRTUAL)  || defined(ARDUINO_attiny3217)
+#if defined(__AVR_ATmega32U4__) || defined(SERIAL_PORT_USBVIRTUAL) || defined(SERIAL_USB) /*stm32duino*/|| defined(USBCON) /*STM32_stm32*/|| defined(SERIALUSB_PID) || defined(ARDUINO_attiny3217)
 delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
 // Just to know which program is running on my Arduino
     Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing library version " VERSION_IRREMOTE));
+    Serial.println(F("Send IR signals at pin " STR(IR_SEND_PIN)));
 
     /*
      * The IR library setup. That's all!
      */
-    IrSender.begin(IR_SEND_PIN, ENABLE_LED_FEEDBACK); // Specify send pin and enable feedback LED at default feedback LED pin
+    IrSender.begin(); // Start with IR_SEND_PIN as send pin and enable feedback LED at default feedback LED pin
 
-    Serial.print(F("Ready to send IR signals at pin "));
-    Serial.println(IR_SEND_PIN);
+
     Serial.println();
     MyLG_Aircondition.setType(LG_IS_WALL_TYPE);
-    MyLG_Aircondition.printMenu();
+    MyLG_Aircondition.printMenu(&Serial);
 
     delay(1000);
 
@@ -141,7 +138,7 @@ void loop() {
         }
 
         if (sShowmenuConter == 0) {
-            MyLG_Aircondition.printMenu();
+            MyLG_Aircondition.printMenu(&Serial);
             sShowmenuConter = NUMBER_OF_COMMANDS_BETWEEN_PRINT_OF_MENU;
         } else {
             sShowmenuConter--;

@@ -124,6 +124,11 @@
   #define CORE_NUM_INTERRUPT    1
   #define CORE_INT0_PIN		2
 
+  // ATtiny44 ATtiny84
+#elif defined(__AVR_ATtiny44__) || defined(__AVR_ATtiny84__)
+  #define CORE_NUM_INTERRUPT	1
+  #define CORE_INT0_PIN		8
+  
 // ATtiny441 ATtiny841
 #elif defined(__AVR_ATtiny441__) || defined(__AVR_ATtiny841__)
   #define CORE_NUM_INTERRUPT	1
@@ -252,7 +257,7 @@
 
 // Arduino Zero - TODO: interrupts do not seem to work
 //                      please help, contribute a fix!
-#elif defined(__SAMD21G18A__)
+#elif defined(__SAMD21G18A__) || defined(__SAMD21E18A__)
   #define CORE_NUM_INTERRUPT	31
   #define CORE_INT0_PIN		0
   #define CORE_INT1_PIN		1
@@ -327,6 +332,57 @@
   #define CORE_INT12_PIN	12
   #define CORE_INT13_PIN	13
 
+// Arduino Nano 33 BLE
+#elif defined(ARDUINO_ARCH_NRF52840)
+  #define CORE_NUM_INTERRUPT	22
+  #define CORE_INT0_PIN		0
+  #define CORE_INT1_PIN		1
+  #define CORE_INT2_PIN		2
+  #define CORE_INT3_PIN		3
+  #define CORE_INT4_PIN		4
+  #define CORE_INT5_PIN		5
+  #define CORE_INT6_PIN		6
+  #define CORE_INT7_PIN		7
+  #define CORE_INT8_PIN		8
+  #define CORE_INT9_PIN		9
+  #define CORE_INT10_PIN	10
+  #define CORE_INT11_PIN	11
+  #define CORE_INT12_PIN	12
+  #define CORE_INT13_PIN	13
+  #define CORE_INT14_PIN	A0
+  #define CORE_INT15_PIN	A1
+  #define CORE_INT16_PIN	A2
+  #define CORE_INT17_PIN	A3
+  #define CORE_INT18_PIN	A4
+  #define CORE_INT19_PIN	A5
+  #define CORE_INT20_PIN	A6
+  #define CORE_INT21_PIN	A7
+
+// Arduino Nano RP2040 Connect
+#elif defined(ARDUINO_NANO_RP2040_CONNECT)
+  #define CORE_NUM_INTERRUPT	20
+  #define CORE_INT0_PIN		0
+  #define CORE_INT1_PIN		1
+  #define CORE_INT2_PIN		2
+  #define CORE_INT3_PIN		3
+  #define CORE_INT4_PIN		4
+  #define CORE_INT5_PIN		5
+  #define CORE_INT6_PIN		6
+  #define CORE_INT7_PIN		7
+  #define CORE_INT8_PIN		8
+  #define CORE_INT9_PIN		9
+  #define CORE_INT10_PIN	10
+  #define CORE_INT11_PIN	11
+  #define CORE_INT12_PIN	12
+  #define CORE_INT13_PIN	13
+  #define CORE_INT14_PIN	14
+  #define CORE_INT15_PIN	15
+  #define CORE_INT16_PIN	16
+  #define CORE_INT17_PIN	17
+  #define CORE_INT18_PIN	18
+  #define CORE_INT19_PIN	19
+  // #define CORE_INT20_PIN	A6
+  // #define CORE_INT21_PIN	A7
 #endif
 #endif
 

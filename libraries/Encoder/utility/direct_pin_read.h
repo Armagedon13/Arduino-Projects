@@ -52,7 +52,7 @@
 #define PIN_TO_BITMASK(pin)             (digitalPinToBitMask(pin))
 #define DIRECT_PIN_READ(base, mask)     (((*(base)) & (mask)) ? 1 : 0)
 
-#elif defined(__SAMD21G18A__)
+#elif defined(__SAMD21G18A__) || defined(__SAMD21E18A__)
 
 #define IO_REG_TYPE                     uint32_t
 #define PIN_TO_BASEREG(pin)             portModeRegister(digitalPinToPort(pin))
@@ -72,6 +72,18 @@
 #define PIN_TO_BASEREG(pin)             (0)
 #define PIN_TO_BITMASK(pin)             (pin)
 #define DIRECT_PIN_READ(base, pin)      nrf_gpio_pin_read(pin)
+
+#elif defined(ARDUINO_ARCH_NRF52840)
+#define IO_REG_TYPE                     uint32_t
+#define PIN_TO_BASEREG(pin)             (0)
+#define PIN_TO_BITMASK(pin)             digitalPinToPinName(pin)
+#define DIRECT_PIN_READ(base, pin)      nrf_gpio_pin_read(pin)
+
+#elif defined(ARDUINO_NANO_RP2040_CONNECT)
+#define IO_REG_TYPE                     pin_size_t
+#define PIN_TO_BASEREG(pin)             (0)
+#define PIN_TO_BITMASK(pin)             pin
+#define DIRECT_PIN_READ(base, pin)      digitalRead(pin)
 
 #elif defined(__arc__) /* Arduino101/Genuino101 specifics */
 

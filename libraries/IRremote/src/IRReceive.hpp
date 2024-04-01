@@ -51,7 +51,7 @@
 //#define _IR_TIMING_TEST_PIN 7 // "pinModeFast(_IR_TIMING_TEST_PIN, OUTPUT);" is executed at start()
 //
 /*
- * Check for additional characteristics of timing like length of mark for a constant mark protocol,
+ * Check for additional required characteristics of timing like length of mark for a constant mark protocol,
  * where space length determines the bit value. Requires up to 194 additional bytes of program memory.
  */
 //#define DECODE_STRICT_CHECKS
@@ -287,7 +287,7 @@ void IRrecv::begin(uint_fast8_t aReceivePin, bool aEnableLEDFeedback, uint_fast8
 
     setReceivePin(aReceivePin);
 #if !defined(NO_LED_FEEDBACK_CODE)
-    bool tEnableLEDFeedback = DO_NOT_ENABLE_LED_FEEDBACK;
+    uint_fast8_t tEnableLEDFeedback = DO_NOT_ENABLE_LED_FEEDBACK;
     if (aEnableLEDFeedback) {
         tEnableLEDFeedback = LED_FEEDBACK_ENABLED_FOR_RECEIVE;
     }
@@ -407,10 +407,11 @@ bool IRrecv::isIdle() {
 }
 
 /**
- * Restart the ISR (Interrupt Service Routine) state machine, to enable receiving of the next IR frame
+ * Restart the ISR (Interrupt Service Routine) state machine, to enable receiving of the next IR frame.
+ * Counting of gap timing is independent of StateForISR and therefore independent of call time of resume().
  */
 void IRrecv::resume() {
-    // check allows to call resume at arbitrary places or more than once
+    // This check allows to call resume at arbitrary places or more than once
     if (irparams.StateForISR == IR_REC_STATE_STOP) {
         irparams.StateForISR = IR_REC_STATE_IDLE;
     }

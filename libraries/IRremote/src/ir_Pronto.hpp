@@ -174,7 +174,7 @@ void IRsend::sendPronto(const char *str, int_fast8_t aNumberOfRepeats) {
 void IRsend::sendPronto_PF(uint_farptr_t str, int_fast8_t aNumberOfRepeats) {
     size_t len = strlen_PF(str);
     char work[len + 1];
-    strncpy_PF(work, str, len);
+    strcpy_PF(work, str); // We know that string including terminating character fits in work
     sendPronto(work, aNumberOfRepeats);
 }
 
@@ -182,15 +182,18 @@ void IRsend::sendPronto_PF(uint_farptr_t str, int_fast8_t aNumberOfRepeats) {
 void IRsend::sendPronto_P(const char *str, int_fast8_t aNumberOfRepeats) {
     size_t len = strlen_P(str);
     char work[len + 1];
-    strncpy_P(work, str, len);
+    strcpy_P(work, str);
     sendPronto(work, aNumberOfRepeats);
 }
 #endif
 
+/*
+ * Copy flash data to ram buffer in stack
+ */
 void IRsend::sendPronto(const __FlashStringHelper *str, int_fast8_t aNumberOfRepeats) {
     size_t len = strlen_P(reinterpret_cast<const char*>(str));
     char work[len + 1];
-    strncpy_P(work, reinterpret_cast<const char*>(str), len);
+    strcpy_P(work, reinterpret_cast<const char*>(str));
     return sendPronto(work, aNumberOfRepeats);
 }
 
@@ -256,10 +259,10 @@ void IRrecv::compensateAndPrintIRResultAsPronto(Print *aSerial, uint16_t aFreque
     aSerial->print(F("char prontoData[] = \""));
     dumpNumber(aSerial, aFrequencyHertz > 0 ? learnedToken : learnedNonModulatedToken);
     dumpNumber(aSerial, toFrequencyCode(aFrequencyHertz));
-    dumpNumber(aSerial, (decodedIRData.rawDataPtr->rawlen + 1) / 2);
+    dumpNumber(aSerial, (decodedIRData.rawlen + 1) / 2);
     dumpNumber(aSerial, 0);
     uint16_t timebase = toTimebase(aFrequencyHertz);
-    compensateAndDumpSequence(aSerial, &decodedIRData.rawDataPtr->rawbuf[1], decodedIRData.rawDataPtr->rawlen - 1, timebase); // skip leading space
+    compensateAndDumpSequence(aSerial, &decodedIRData.rawDataPtr->rawbuf[1], decodedIRData.rawlen - 1, timebase); // skip leading space
     aSerial->println("\";");
 }
 
@@ -326,9 +329,9 @@ size_t IRrecv::compensateAndStorePronto(String *aString, uint16_t frequency) {
 
     size += dumpNumber(aString, frequency > 0 ? learnedToken : learnedNonModulatedToken);
     size += dumpNumber(aString, toFrequencyCode(frequency));
-    size += dumpNumber(aString, (decodedIRData.rawDataPtr->rawlen + 1) / 2);
+    size += dumpNumber(aString, (decodedIRData.rawlen + 1) / 2);
     size += dumpNumber(aString, 0);
-    size += compensateAndDumpSequence(aString, &decodedIRData.rawDataPtr->rawbuf[1], decodedIRData.rawDataPtr->rawlen - 1,
+    size += compensateAndDumpSequence(aString, &decodedIRData.rawDataPtr->rawbuf[1], decodedIRData.rawlen - 1,
             timebase); // skip leading space
 
     return size;

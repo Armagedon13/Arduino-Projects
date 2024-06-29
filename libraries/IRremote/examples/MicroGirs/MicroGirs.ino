@@ -67,12 +67,13 @@
 #include "PinDefinitionsAndMore.h" // Define macros for input and output pin etc.
 
 #if !defined(RAW_BUFFER_LENGTH)
-#  if RAMEND <= 0x4FF || RAMSIZE < 0x4FF
-#define RAW_BUFFER_LENGTH  180  // 750 (600 if we have only 2k RAM) is the value for air condition remotes. Default is 112 if DECODE_MAGIQUEST is enabled, otherwise 100.
-#  elif RAMEND <= 0x8FF || RAMSIZE < 0x8FF
-#define RAW_BUFFER_LENGTH  500  // 750 (600 if we have only 2k RAM) is the value for air condition remotes. Default is 112 if DECODE_MAGIQUEST is enabled, otherwise 100.
+// For air condition remotes it requires 600 (maximum for 2k RAM) to 750. Default is 112 if DECODE_MAGIQUEST is enabled, otherwise 100.
+#  if (defined(RAMEND) && RAMEND <= 0x4FF) || (defined(RAMSIZE) && RAMSIZE < 0x4FF)
+#define RAW_BUFFER_LENGTH  180
+#  elif (defined(RAMEND) && RAMEND <= 0x8FF) || (defined(RAMSIZE) && RAMSIZE < 0x8FF)
+#define RAW_BUFFER_LENGTH  600
 #  else
-#define RAW_BUFFER_LENGTH  750  // 750 (600 if we have only 2k RAM) is the value for air condition remotes. Default is 112 if DECODE_MAGIQUEST is enabled, otherwise 100.
+#define RAW_BUFFER_LENGTH  750
 #  endif
 #endif
 
@@ -317,7 +318,7 @@ void setup() {
 #endif
 
 #if defined(IR_SEND_PIN)
-    IrSender.begin(); // Start with IR_SEND_PIN as send pin and enable feedback LED at default feedback LED pin
+    IrSender.begin(); // Start with IR_SEND_PIN -which is defined in PinDefinitionsAndMore.h- as send pin and enable feedback LED at default feedback LED pin
 #else
     IrSender.begin(3, ENABLE_LED_FEEDBACK, USE_DEFAULT_FEEDBACK_LED_PIN); // Specify send pin and enable feedback LED at default feedback LED pin
 #endif

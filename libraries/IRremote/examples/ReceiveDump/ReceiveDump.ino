@@ -10,7 +10,7 @@
  ************************************************************************************
  * MIT License
  *
- * Copyright (c) 2020-2022 Armin Joachimsmeyer
+ * Copyright (c) 2020-2024 Armin Joachimsmeyer
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,12 +36,13 @@
 #include "PinDefinitionsAndMore.h" // Define macros for input and output pin etc.
 
 #if !defined(RAW_BUFFER_LENGTH)
-#  if RAMEND <= 0x4FF || RAMSIZE < 0x4FF
-#define RAW_BUFFER_LENGTH  180  // 750 (600 if we have only 2k RAM) is the value for air condition remotes. Default is 112 if DECODE_MAGIQUEST is enabled, otherwise 100.
-#  elif RAMEND <= 0x8FF || RAMSIZE < 0x8FF
-#define RAW_BUFFER_LENGTH  600  // 750 (600 if we have only 2k RAM) is the value for air condition remotes. Default is 112 if DECODE_MAGIQUEST is enabled, otherwise 100.
+// For air condition remotes it requires 600 (maximum for 2k RAM) to 750. Default is 112 if DECODE_MAGIQUEST is enabled, otherwise 100.
+#  if (defined(RAMEND) && RAMEND <= 0x4FF) || (defined(RAMSIZE) && RAMSIZE < 0x4FF)
+#define RAW_BUFFER_LENGTH  180
+#  elif (defined(RAMEND) && RAMEND <= 0x8FF) || (defined(RAMSIZE) && RAMSIZE < 0x8FF)
+#define RAW_BUFFER_LENGTH  600
 #  else
-#define RAW_BUFFER_LENGTH  750  // 750 (600 if we have only 2k RAM) is the value for air condition remotes. Default is 112 if DECODE_MAGIQUEST is enabled, otherwise 100.
+#define RAW_BUFFER_LENGTH  750
 #  endif
 #endif
 
@@ -56,7 +57,7 @@
  */
 #define MARK_EXCESS_MICROS    20    // Adapt it to your IR receiver module. 20 is recommended for the cheap VS1838 modules.
 
-//#define RECORD_GAP_MICROS 12000 // Default is 5000. Activate it for some LG air conditioner protocols
+//#define RECORD_GAP_MICROS 12000 // Default is 8000. Activate it for some LG air conditioner protocols
 //#define DEBUG // Activate this for lots of lovely debug output from the decoders.
 
 #include <IRremote.hpp>
@@ -88,6 +89,9 @@ void setup() {
     Serial.println();
     Serial.println(F("Because of the verbose output (>200 ms at 115200 baud), repeats are not dumped correctly!"));
     Serial.println();
+    Serial.println(F("If you receive protocol NEC, Samsung or LG, run also ReceiveDemo to check if your actual protocol is eventually NEC2 or SamsungLG, which is determined by the repeats"));
+    Serial.println();
+
 }
 
 //+=============================================================================
@@ -123,8 +127,6 @@ void loop() {
             IrReceiver.compensateAndPrintIRResultAsCArray(&Serial, true); // Output the results as uint16_t source code array of micros
             IrReceiver.printIRResultAsCVariables(&Serial);  // Output address and data as source code variables
             Serial.println();                               // blank line between entries
-            IrReceiver.printIRSendUsage(&Serial);
-            Serial.println();                               // blank line between entries
 
             IrReceiver.compensateAndPrintIRResultAsPronto(&Serial);
 
@@ -147,6 +149,6 @@ void loop() {
 //            Serial.println();                                 // blank line between entries
 //        }
         }
-        IrReceiver.resume();                            // Prepare for the next value
+        IrReceiver.resume();                            // Prepare for the next IR frame
     }
 }

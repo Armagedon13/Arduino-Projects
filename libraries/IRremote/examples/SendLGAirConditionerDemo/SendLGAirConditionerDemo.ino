@@ -42,7 +42,9 @@
 //#define USE_LG2_PROTOCOL // Try it if you do not have success with the default LG protocol
 #define NUMBER_OF_COMMANDS_BETWEEN_PRINT_OF_MENU 5
 
-#define DISABLE_CODE_FOR_RECEIVER // Disables restarting receiver after each send. Saves 450 bytes program memory and 269 bytes RAM if receiving functions are not used.
+#if !defined(ARDUINO_ESP32C3_DEV) // This is due to a bug in RISC-V compiler, which requires unused function sections :-(.
+#define DISABLE_CODE_FOR_RECEIVER // Disables static receiver code like receive timer ISR handler and static IRReceiver and irparams data. Saves 450 bytes program memory and 269 bytes RAM if receiving functions are not required.
+#endif
 
 #define INFO // Deactivate this to save program memory and suppress info output from the LG-AC driver.
 //#define DEBUG // Activate this for more output from the LG-AC driver.
@@ -75,7 +77,7 @@ delay(4000); // To be able to connect Serial monitor after reset or power up and
     /*
      * The IR library setup. That's all!
      */
-    IrSender.begin(); // Start with IR_SEND_PIN as send pin and enable feedback LED at default feedback LED pin
+    IrSender.begin(); // Start with IR_SEND_PIN -which is defined in PinDefinitionsAndMore.h- as send pin and enable feedback LED at default feedback LED pin
 
 
     Serial.println();

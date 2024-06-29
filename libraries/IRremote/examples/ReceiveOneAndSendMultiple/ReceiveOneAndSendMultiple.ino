@@ -123,7 +123,7 @@ void setup() {
     printActiveIRProtocols(&Serial);
     Serial.println(F("at pin " STR(IR_RECEIVE_PIN)));
 
-    IrSender.begin(); // Start with IR_SEND_PIN as send pin and enable feedback LED at default feedback LED pin
+    IrSender.begin(); // Start with IR_SEND_PIN -which is defined in PinDefinitionsAndMore.h- as send pin and enable feedback LED at default feedback LED pin
     Serial.println(F("Ready to send IR signals at pin " STR(IR_SEND_PIN)));
 }
 
@@ -190,7 +190,7 @@ void sendSamsungSmartHubMacro(bool aDoSelect) {
     }
 
 #    if !defined(ESP32)
-    IrReceiver.stop(); // ESP32 uses another timer for tone()
+    IrReceiver.stopTimer(); // ESP32 uses another timer for tone()
 #    endif
     if (millis() < tWaitTimeAfterBoot) {
         // division by 1000 and printing requires much (8%) program memory
@@ -218,7 +218,7 @@ void sendSamsungSmartHubMacro(bool aDoSelect) {
     delay(200);
 
 #    if !defined(ESP32)
-    IrReceiver.start(200000); // to compensate for 200 ms stop of receiver. This enables a correct gap measurement.
+    IrReceiver.restartTimer(200000); // to compensate for 200 ms stop of receiver. This enables a correct gap measurement.
 #    endif
 
     Serial.println(F("Wait for \"not supported\" to disappear"));

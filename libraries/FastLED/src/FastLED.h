@@ -9,17 +9,17 @@
 #endif
 
 /// Current FastLED version number, as an integer.
-/// E.g. 3006000 for version "3.6.0", with:
+/// E.g. 3007000 for version "3.7.0", with:
 /// * 1 digit for the major version
 /// * 3 digits for the minor version
 /// * 3 digits for the patch version
-#define FASTLED_VERSION 3006000
+#define FASTLED_VERSION 3007000
 #ifndef FASTLED_INTERNAL
 #  ifdef  FASTLED_SHOW_VERSION
 #    ifdef FASTLED_HAS_PRAGMA_MESSAGE
-#      pragma message "FastLED version 3.006.000"
+#      pragma message "FastLED version 3.007.000"
 #    else
-#      warning FastLED version 3.006.000  (Not really a warning, just telling you here.)
+#      warning FastLED version 3.007.000  (Not really a warning, just telling you here.)
 #    endif
 #  endif
 #endif
@@ -41,6 +41,10 @@
 
 #ifdef DmxSerial_h
 #include <DMXSerial.h>
+#endif
+
+#ifdef USE_OCTOWS2811
+#include <OctoWS2811.h>
 #endif
 
 #include <stdint.h>
@@ -87,7 +91,10 @@ enum ESPIChipsets {
 	P9813,    ///< P9813 LED chipset
 	APA102,   ///< APA102 LED chipset
 	SK9822,   ///< SK9822 LED chipset
-	DOTSTAR   ///< APA102 LED chipset alias
+	SK9822HD, ///< SK9822 LED chipset with 5-bit gamma correction
+	DOTSTAR,  ///< APA102 LED chipset alias
+	DOTSTARHD, ///< APA102HD LED chipset alias
+	APA102HD, ///< APA102 LED chipset with 5-bit gamma correction
 };
 
 /// Smart Matrix Library controller type
@@ -274,7 +281,10 @@ public:
 			case P9813: { static P9813Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
 			case DOTSTAR:
 			case APA102: { static APA102Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
+			case DOTSTARHD:
+			case APA102HD: { static APA102ControllerHD<DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
 			case SK9822: { static SK9822Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
+		    case SK9822HD: { static SK9822ControllerHD<DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
 		}
 	}
 
@@ -289,7 +299,10 @@ public:
 			case P9813: { static P9813Controller<DATA_PIN, CLOCK_PIN> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
 			case DOTSTAR:
 			case APA102: { static APA102Controller<DATA_PIN, CLOCK_PIN> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
+			case DOTSTARHD:
+			case APA102HD: { static APA102ControllerHD<DATA_PIN, CLOCK_PIN> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
 			case SK9822: { static SK9822Controller<DATA_PIN, CLOCK_PIN> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
+			case SK9822HD: { static SK9822ControllerHD<DATA_PIN, CLOCK_PIN> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
 		}
 	}
 
@@ -304,7 +317,10 @@ public:
 			case P9813: { static P9813Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
 			case DOTSTAR:
 			case APA102: { static APA102Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
+			case DOTSTARHD:
+			case APA102HD: { static APA102ControllerHD<DATA_PIN, CLOCK_PIN, RGB_ORDER> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
 			case SK9822: { static SK9822Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
+			case SK9822HD: { static SK9822ControllerHD<DATA_PIN, CLOCK_PIN, RGB_ORDER> c; return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset); }
 		}
 	}
 

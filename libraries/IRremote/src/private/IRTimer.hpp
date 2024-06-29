@@ -1397,6 +1397,9 @@ void timerConfigForSend(uint16_t aFrequencyKHz) {
 }
 #  endif // defined(SEND_PWM_BY_TIMER)
 
+/**********************************************************
+ * ESP8266 boards
+ **********************************************************/
 #elif defined(ESP8266)
 #  if defined(SEND_PWM_BY_TIMER)
 #error "No support for hardware PWM generation for ESP8266"
@@ -1411,7 +1414,7 @@ void timerEnableReceiveInterrupt() {
     timer1_attachInterrupt(&IRReceiveTimerInterruptHandler); // enables interrupt too
 }
 void timerDisableReceiveInterrupt() {
-    timer1_detachInterrupt(); // disables interrupt too }
+    timer1_detachInterrupt(); // disables interrupt too
 }
 
 void timerConfigForReceive() {
@@ -1431,12 +1434,16 @@ void timerConfigForReceive() {
  * so it is recommended to always define SEND_PWM_BY_TIMER
  **********************************************************/
 #elif defined(ESP32)
+#  if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
+#error This library does not work with ESP32 core 3.x. You are kindly invited to port and document the code to 3.x, to fix this problem!
+#  endif
+
 // Variables specific to the ESP32.
 // the ledc functions behave like hardware timers for us :-), so we do not require our own soft PWM generation code.
 hw_timer_t *s50usTimer = NULL; // set by timerConfigForReceive()
 
-#  if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0) &&  !defined(SEND_AND_RECEIVE_TIMER_LEDC_CHANNEL)
-#define SEND_AND_RECEIVE_TIMER_LEDC_CHANNEL 0 // The channel used for PWM 0 to 7 are high speed PWM channels
+#  if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0) &&  !defined(SEND_LEDC_CHANNEL)
+#define SEND_LEDC_CHANNEL 0 // The channel used for PWM 0 to 7 are high speed PWM channels
 #  endif
 
 void timerEnableReceiveInterrupt() {
@@ -1469,6 +1476,7 @@ void timerDisableReceiveInterrupt() {
 #undef ISR
 #  endif
 
+#  if !defined(DISABLE_CODE_FOR_RECEIVER) // &IRReceiveTimerInterruptHandler is referenced, but not available
 void timerConfigForReceive() {
     // ESP32 has a proper API to setup timers, no weird chip macros needed
     // simply call the readable API versions :)
@@ -1480,6 +1488,7 @@ void timerConfigForReceive() {
     }
     // every 50 us, autoreload = true
 }
+#  endif
 
 #  if !defined(IR_SEND_PIN)
 uint8_t sLastSendPin = 0; // To detach before attach, if already attached
@@ -1488,14 +1497,14 @@ uint8_t sLastSendPin = 0; // To detach before attach, if already attached
 #  if defined(SEND_PWM_BY_TIMER)
 void enableSendPWMByTimer() {
 #    if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-    ledcWrite(SEND_AND_RECEIVE_TIMER_LEDC_CHANNEL, (IR_SEND_DUTY_CYCLE_PERCENT * 256) / 100); //  * 256 since we have 8 bit resolution
+    ledcWrite(SEND_LEDC_CHANNEL, (IR_SEND_DUTY_CYCLE_PERCENT * 256) / 100); //  * 256 since we have 8 bit resolution
 #    else
     ledcWrite(IrSender.sendPin, (IR_SEND_DUTY_CYCLE_PERCENT * 256) / 100); // New API
 #    endif
 }
 void disableSendPWMByTimer() {
 #    if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-    ledcWrite(SEND_AND_RECEIVE_TIMER_LEDC_CHANNEL, 0);
+    ledcWrite(SEND_LEDC_CHANNEL, 0);
 #    else
     ledcWrite(IrSender.sendPin, 0); // New API
 #    endif
@@ -1507,14 +1516,14 @@ void disableSendPWMByTimer() {
  */
 void timerConfigForSend(uint16_t aFrequencyKHz) {
 #    if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0)
-    ledcSetup(SEND_AND_RECEIVE_TIMER_LEDC_CHANNEL, aFrequencyKHz * 1000, 8);  // 8 bit PWM resolution
+    ledcSetup(SEND_LEDC_CHANNEL, aFrequencyKHz * 1000, 8);  // 8 bit PWM resolution
 #      if defined(IR_SEND_PIN)
-    ledcAttachPin(IR_SEND_PIN, SEND_AND_RECEIVE_TIMER_LEDC_CHANNEL);  // attach pin to channel
+    ledcAttachPin(IR_SEND_PIN, SEND_LEDC_CHANNEL);  // attach pin to channel
 #      else
     if(sLastSendPin != 0 && sLastSendPin != IrSender.sendPin){
         ledcDetachPin(IrSender.sendPin);  // detach pin before new attaching see #1194
     }
-    ledcAttachPin(IrSender.sendPin, SEND_AND_RECEIVE_TIMER_LEDC_CHANNEL);  // attach pin to channel
+    ledcAttachPin(IrSender.sendPin, SEND_LEDC_CHANNEL);  // attach pin to channel
     sLastSendPin = IrSender.sendPin;
 #      endif
 #    else  // New API here

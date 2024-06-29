@@ -2,6 +2,26 @@
 The latest version may not be released!
 See also the commit log at github: https://github.com/Arduino-IRremote/Arduino-IRremote/commits/master
 
+# 4.3.2
+- Added sendSonyMSB(unsigned long data, int nbits) as a clone of sendSony(unsigned long data, int nbits) to be more consistent.
+- Added sendSamsungMSB(unsigned long data, int nbits) as a clone of sendSAMSUNG(unsigned long data, int nbits) to be more consistent.
+- Added ESP32 core 3.x error message.
+
+# 4.3.1
+ - Fixed overflow bug for rawlen > 254.
+ - Removed deprecated sendPulseDistance... functions with parameter aSendStopBit.
+
+# 4.3.0
+- Removed default value USE_DEFAULT_FEEDBACK_LED_PIN for last parameter of IRsend::begin(bool aEnableLEDFeedback, uint_fast8_t aFeedbackLEDPin).
+    Therefore IrSender.begin(DISABLE_LED_FEEDBACK) will not longer work!
+- Added convenience function isIRReceiverAttachedForTinyReceiver().
+- Added Extended NEC Protocol macro to TinyIR by Buzzerb.
+- Fixed sendSamsung() / sendSamsungLG() bug.
+- Added functions stopTimer(), restartTimer() and restartTimerWithTicksToAdd().
+- Added rawlen and initialGap to IRData.
+- Added ReceiveAndSendHobToHood example.
+- Changed RECORD_GAP_MICROS default value from 5000 to 8000.
+
 # 4.2.1
 - Fix wrong type of tEnableLEDFeedback in IRSend.hpp and IRReceive.hpp.
 - TinyReceiver 2.0

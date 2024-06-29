@@ -8,7 +8,7 @@
  ************************************************************************************
  * MIT License
  *
- * Copyright (c) 2020-2023 Armin Joachimsmeyer
+ * Copyright (c) 2020-2024 Armin Joachimsmeyer
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -58,8 +58,8 @@ typedef enum {
     RC5,
     RC6,
     SAMSUNG,
+    SAMSUNGLG,
     SAMSUNG48,
-    SAMSUNG_LG,
     SHARP,
     SONY,
     /* Now the exotic protocols */
@@ -70,7 +70,6 @@ typedef enum {
     WHYNTER,
     FAST
 } decode_type_t;
-
 
 #define SIRCS_12_PROTOCOL       12
 #define SIRCS_15_PROTOCOL       15
@@ -95,6 +94,7 @@ struct DistanceWidthTimingInfoStruct {
 #define IRDATA_FLAGS_TOGGLE_BIT         0x08 ///< Is set if RC5 or RC6 toggle bit is set.
 #define IRDATA_TOGGLE_BIT_MASK          0x08 ///< deprecated -is set if RC5 or RC6 toggle bit is set.
 #define IRDATA_FLAGS_EXTRA_INFO         0x10 ///< There is extra info not contained in address and data (e.g. Kaseikyo unknown vendor ID, or in decodedRawDataArray).
+#define IRDATA_FLAGS_IS_PROTOCOL_WITH_DIFFERENT_REPEAT 0x20 ///< Here we have a repeat of type NEC2 or SamsungLG
 #define IRDATA_FLAGS_WAS_OVERFLOW       0x40 ///< irparams.rawlen is set to 0 in this case to avoid endless OverflowFlag.
 #define IRDATA_FLAGS_IS_MSB_FIRST       0x80 ///< Value is mainly determined by the (known) protocol.
 #define IRDATA_FLAGS_IS_LSB_FIRST       0x00
@@ -117,6 +117,11 @@ struct IRData {
 #endif
     uint16_t numberOfBits; ///< Number of bits received for data (address + command + parity) - to determine protocol length if different length are possible.
     uint8_t flags;          ///< IRDATA_FLAGS_IS_REPEAT, IRDATA_FLAGS_WAS_OVERFLOW etc. See IRDATA_FLAGS_* definitions above
+
+    // These 2 variables allow to call resume() directly after decode, if no dump is required. Since 4.3.0.
+    IRRawlenType rawlen;        ///< counter of entries in rawbuf
+    uint16_t initialGap;        ///< rawbuf[0] contains the initial gap of the last frame.
+
     irparams_struct *rawDataPtr; ///< Pointer of the raw timing data to be decoded. Mainly the OverflowFlag and the data buffer filled by receiving ISR.
 };
 
@@ -132,12 +137,9 @@ struct PulseDistanceWidthProtocolConstants {
 /*
  * Definitions for member PulseDistanceWidthProtocolConstants.Flags
  */
-#define SUPPRESS_STOP_BIT_FOR_THIS_DATA 0x20
+#define SUPPRESS_STOP_BIT_FOR_THIS_DATA 0x20 // Stop bit is otherwise sent for all pulse distance protocols.
 #define PROTOCOL_IS_MSB_FIRST           IRDATA_FLAGS_IS_MSB_FIRST
 #define PROTOCOL_IS_LSB_FIRST           IRDATA_FLAGS_IS_LSB_FIRST
-// 2 definitions for deprecated parameter bool aSendStopBit
-#define SEND_STOP_BIT true
-#define SEND_NO_STOP_BIT false
 
 /*
  * Carrier frequencies for various protocols

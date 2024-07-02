@@ -99,8 +99,8 @@ const char *ssid = "programming mode";
 const char *password = "lalaland";
 
 // Static IP configuration
-IPAddress local_ip(192, 168, 4, 1);
-IPAddress gateway(192, 168, 4, 1);
+IPAddress local_ip(192, 168, 4, 22);
+IPAddress gateway(192, 168, 4, 9);
 IPAddress subnet(255, 255, 255, 0);
 
 int ssid_hidden_state = 1;
@@ -148,6 +148,7 @@ void loop() {
     Serial.print("AP IP:");
     Serial.println(WiFi.softAPIP());
     Serial.println("show SSid");
+    setupOTA();
     previousSwitchState = HIGH;
   }
   else if (switchState == HIGH && previousSwitchState == HIGH){

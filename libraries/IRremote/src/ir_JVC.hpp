@@ -135,7 +135,7 @@ bool IRrecv::decodeJVC() {
          * Check for repeat
          * Check leading space and first and last mark length
          */
-        if (decodedIRData.initialGap < ((JVC_REPEAT_DISTANCE + (JVC_REPEAT_DISTANCE / 4) / MICROS_PER_TICK))
+        if (decodedIRData.initialGapTicks < ((JVC_REPEAT_DISTANCE + (JVC_REPEAT_DISTANCE / 4) / MICROS_PER_TICK))
                 && matchMark(decodedIRData.rawDataPtr->rawbuf[1], JVC_BIT_MARK)
                 && matchMark(decodedIRData.rawDataPtr->rawbuf[decodedIRData.rawlen - 1], JVC_BIT_MARK)) {
             /*
@@ -207,7 +207,7 @@ bool IRrecv::decodeJVCMSB(decode_results *aResults) {
     }
     offset++;
 
-    if (!decodePulseDistanceWidthData(JVC_BITS, offset, JVC_BIT_MARK, 0, JVC_ONE_SPACE, JVC_ZERO_SPACE, PROTOCOL_IS_MSB_FIRST)) {
+    if (!decodePulseDistanceWidthData(JVC_BITS, offset, JVC_BIT_MARK, JVC_ONE_SPACE, 0, PROTOCOL_IS_MSB_FIRST)) {
         return false;
     }
 

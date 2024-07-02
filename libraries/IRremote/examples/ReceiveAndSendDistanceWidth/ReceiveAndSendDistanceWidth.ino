@@ -57,12 +57,10 @@
 #define DECODE_DISTANCE_WIDTH // Universal decoder for pulse distance width protocols
 //
 #if !defined(RAW_BUFFER_LENGTH)
-// For air condition remotes it requires 600 (maximum for 2k RAM) to 750. Default is 112 if DECODE_MAGIQUEST is enabled, otherwise 100.
+// For air condition remotes it requires 750. Default is 200.
 #  if (defined(RAMEND) && RAMEND <= 0x4FF) || (defined(RAMSIZE) && RAMSIZE < 0x4FF)
-#define RAW_BUFFER_LENGTH  180
+#define RAW_BUFFER_LENGTH  360
 #  elif (defined(RAMEND) && RAMEND <= 0x8FF) || (defined(RAMSIZE) && RAMSIZE < 0x8FF)
-#define RAW_BUFFER_LENGTH  600
-#  else
 #define RAW_BUFFER_LENGTH  750
 #  endif
 #endif
@@ -91,7 +89,11 @@ void setup() {
     pinMode(SEND_BUTTON_PIN, INPUT_PULLUP);
 
     Serial.begin(115200);
-#if defined(__AVR_ATmega32U4__) || defined(SERIAL_PORT_USBVIRTUAL) || defined(SERIAL_USB) /*stm32duino*/|| defined(USBCON) /*STM32_stm32*/|| defined(SERIALUSB_PID) || defined(ARDUINO_attiny3217)
+    while (!Serial)
+        ; // Wait for Serial to become available. Is optimized away for some cores.
+
+#if defined(__AVR_ATmega32U4__) || defined(SERIAL_PORT_USBVIRTUAL) || defined(SERIAL_USB) /*stm32duino*/|| defined(USBCON) /*STM32_stm32*/ \
+    || defined(SERIALUSB_PID)  || defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_attiny3217)
     delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
     // Just to know which program is running on my Arduino

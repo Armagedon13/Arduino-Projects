@@ -36,12 +36,8 @@
 #include "PinDefinitionsAndMore.h" // Define macros for input and output pin etc.
 
 #if !defined(RAW_BUFFER_LENGTH)
-// For air condition remotes it requires 600 (maximum for 2k RAM) to 750. Default is 112 if DECODE_MAGIQUEST is enabled, otherwise 100.
-#  if (defined(RAMEND) && RAMEND <= 0x4FF) || (defined(RAMSIZE) && RAMSIZE < 0x4FF)
-#define RAW_BUFFER_LENGTH  180
-#  elif (defined(RAMEND) && RAMEND <= 0x8FF) || (defined(RAMSIZE) && RAMSIZE < 0x8FF)
-#define RAW_BUFFER_LENGTH  600
-#  else
+// For air condition remotes it requires 750. Default is 200.
+#  if !((defined(RAMEND) && RAMEND <= 0x4FF) || (defined(RAMSIZE) && RAMSIZE < 0x4FF))
 #define RAW_BUFFER_LENGTH  750
 #  endif
 #endif
@@ -69,7 +65,11 @@ void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
 
     Serial.begin(115200);   // Status message will be sent to PC at 9600 baud
-#if defined(__AVR_ATmega32U4__) || defined(SERIAL_PORT_USBVIRTUAL) || defined(SERIAL_USB) /*stm32duino*/|| defined(USBCON) /*STM32_stm32*/|| defined(SERIALUSB_PID) || defined(ARDUINO_attiny3217)
+    while (!Serial)
+        ; // Wait for Serial to become available. Is optimized away for some cores.
+
+#if defined(__AVR_ATmega32U4__) || defined(SERIAL_PORT_USBVIRTUAL) || defined(SERIAL_USB) /*stm32duino*/|| defined(USBCON) /*STM32_stm32*/ \
+    || defined(SERIALUSB_PID)  || defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_attiny3217)
     delay(4000); // To be able to connect Serial monitor after reset or power up and before first print out. Do not wait for an attached Serial Monitor!
 #endif
     // Just to know which program is running on my Arduino
@@ -89,7 +89,9 @@ void setup() {
     Serial.println();
     Serial.println(F("Because of the verbose output (>200 ms at 115200 baud), repeats are not dumped correctly!"));
     Serial.println();
-    Serial.println(F("If you receive protocol NEC, Samsung or LG, run also ReceiveDemo to check if your actual protocol is eventually NEC2 or SamsungLG, which is determined by the repeats"));
+    Serial.println(
+            F(
+                    "If you receive protocol NEC, Samsung or LG, run also ReceiveDemo to check if your actual protocol is eventually NEC2 or SamsungLG, which is determined by the repeats"));
     Serial.println();
 
 }

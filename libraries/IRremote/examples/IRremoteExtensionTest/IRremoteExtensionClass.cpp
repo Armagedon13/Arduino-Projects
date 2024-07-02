@@ -36,12 +36,10 @@
  * Otherwise you may get warnings like "type 'struct IRData' itself violates the C++ One Definition Rule"
  */
 #if !defined(RAW_BUFFER_LENGTH)
-// For air condition remotes it requires 600 (maximum for 2k RAM) to 750. Default is 112 if DECODE_MAGIQUEST is enabled, otherwise 100.
+// For air condition remotes it requires 750. Default is 200.
 #  if (defined(RAMEND) && RAMEND <= 0x4FF) || (defined(RAMSIZE) && RAMSIZE < 0x4FF)
-#define RAW_BUFFER_LENGTH  180
+#define RAW_BUFFER_LENGTH  360
 #  elif (defined(RAMEND) && RAMEND <= 0x8FF) || (defined(RAMSIZE) && RAMSIZE < 0x8FF)
-#define RAW_BUFFER_LENGTH  600
-#  else
 #define RAW_BUFFER_LENGTH  750
 #  endif
 #endif
@@ -56,7 +54,7 @@ bool IRExtensionClass::decode() {
 }
 
 bool IRExtensionClass::printIRResultShort(Print *aSerial, bool aPrintRepeatGap, bool aCheckForRecordGapsMicros) {
-    return MyIrReceiver->printIRResultShort(aSerial,aPrintRepeatGap,aCheckForRecordGapsMicros);
+    return MyIrReceiver->printIRResultShort(aSerial, aPrintRepeatGap, aCheckForRecordGapsMicros);
 }
 
 void IRExtensionClass::resume() {

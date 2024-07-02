@@ -11,6 +11,7 @@ IPAddress gateway(192,168,4,9);
 IPAddress subnet(255,255,255,0);
 
 unsigned long previousMillis;
+
 void setup() {
  Serial.begin(115200);
  Serial.println("Booting");
@@ -48,14 +49,15 @@ void initOTA() {
  .onStart([]() {
  		String type;
  		if (ArduinoOTA.getCommand() == U_FLASH)
- 				type = "sketch";
+ 			type = "sketch";
  		else // U_SPIFFS
- 				type = "filesystem";
+ 			type = "filesystem";
  		// NOTE: if updating SPIFFS this would be the place to unmount SPIFFS using SPIFFS.end()
  		Serial.println("Start updating " + type);
  })
  .onEnd([]() {
  		Serial.println("\nEnd");
+    softAPdisconnect();
  })
  .onProgress([](unsigned int progress, unsigned int total) {
  		Serial.printf("Progress: %u%%\r", (progress / (total / 100)));

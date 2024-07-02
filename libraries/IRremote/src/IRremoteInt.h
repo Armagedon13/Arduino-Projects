@@ -64,15 +64,21 @@
 #define USE_DEFAULT_FEEDBACK_LED_PIN    0
 
 /**
- * The length of the buffer where the IR timing data is stored before decoding
- * 100 is sufficient for most standard protocols, but air conditioners often send a longer protocol data stream
+ * The RAW_BUFFER_LENGTH determines the length of the byte buffer where the received IR timing data is stored before decoding.
+ * 100 is sufficient for standard protocols up to 48 bits, with 1 bit consisting of one mark and space plus 1 byte for initial gap, 2 bytes for header and 1 byte for stop bit.
+ * 48 bit protocols are PANASONIC, KASEIKYO, SAMSUNG48, RC6.
+ * 32 bit protocols like NEC, SAMSUNG, WHYNTER, SONY(20), LG(28) requires a buffer length of 68.
+ * 16 bit protocols like BOSEWAVE, DENON, FAST, JVC, LEGO_PF, RC5, SONY(12 or 15) requires a buffer length of 36.
+ * MAGIQUEST requires a buffer length of 112.
+ * Air conditioners often send a longer protocol data stream up to 750 bits.
  */
 #if !defined(RAW_BUFFER_LENGTH)
-#  if defined(DECODE_MAGIQUEST)
-#define RAW_BUFFER_LENGTH  112  // MagiQuest requires 112 bytes.
+#  if (defined(RAMEND) && RAMEND <= 0x8FF) || (defined(RAMSIZE) && RAMSIZE < 0x8FF)
+// for RAMsize <= 2k
+#define RAW_BUFFER_LENGTH  200  ///< Length of raw duration buffer. Must be even. 100 supports up to 48 bit codings inclusive 1 start and 1 stop bit.
 #  else
-#define RAW_BUFFER_LENGTH  100  ///< Length of raw duration buffer. Must be even. 100 supports up to 48 bit codings inclusive 1 start and 1 stop bit.
-//#define RAW_BUFFER_LENGTH  750  // 750 (600 if we have only 2k RAM) is the value for air condition remotes.
+// For undefined or bigger RAMsize
+#define RAW_BUFFER_LENGTH  750 // The value for air condition remotes.
 #  endif
 #endif
 #if RAW_BUFFER_LENGTH % 2 == 1
@@ -84,6 +90,29 @@ typedef uint_fast8_t IRRawlenType;
 #else
 typedef unsigned int IRRawlenType;
 #endif
+
+/*
+ * Use 8 bit buffer for IR timing in 50 ticks units.
+ * It is save to use 8 bit if RECORD_GAP_TICKS < 256, since any value greater 255 is interpreted as frame gap of 12750 us.
+ * The default for frame gap is currently 8000!
+ * But if we assume that for most protocols the frame gap is way greater than the biggest mark or space duration,
+ * we can choose to use a 8 bit buffer even for frame gaps up to 200000 us.
+ * This enables the use of 8 bit buffer even for more some protocols like B&O or LG air conditioner etc.
+ */
+#if RECORD_GAP_TICKS <= 400 // Corresponds to RECORD_GAP_MICROS of 200000. A value of 255 is foolproof, but we assume, that the frame gap is
+typedef uint8_t IRRawbufType; // all timings up to the gap fit into 8 bit.
+#else
+typedef uint16_t IRRawbufType; // The gap does not fit into 8 bit ticks value. This must not be a reason to use 16 bit for buffer, but it is at least save.
+#endif
+
+#if (__INT_WIDTH__ < 32)
+typedef uint32_t IRRawDataType;
+#define BITS_IN_RAW_DATA_TYPE   32
+#else
+typedef uint64_t IRRawDataType;
+#define BITS_IN_RAW_DATA_TYPE   64
+#endif
+
 /****************************************************
  * Declarations for the receiver Interrupt Service Routine
  ****************************************************/
@@ -98,7 +127,7 @@ typedef unsigned int IRRawlenType;
  * Only StateForISR needs to be volatile. All the other fields are not written by ISR after data available and before start/resume.
  */
 struct irparams_struct {
-    // The fields are ordered to reduce memory over caused by struct-padding
+    // The fields are ordered to reduce memory overflow caused by struct-padding
     volatile uint8_t StateForISR;       ///< State Machine state
     uint_fast8_t IRReceivePin;          ///< Pin connected to IR data from detector
 #if defined(__AVR__)
@@ -110,17 +139,11 @@ struct irparams_struct {
     void (*ReceiveCompleteCallbackFunction)(void); ///< The function to call if a protocol message has arrived, i.e. StateForISR changed to IR_REC_STATE_STOP
 #endif
     bool OverflowFlag;                  ///< Raw buffer OverflowFlag occurred
-    IRRawlenType rawlen;               ///< counter of entries in rawbuf
-    uint16_t rawbuf[RAW_BUFFER_LENGTH]; ///< raw data / tick counts per mark/space, first entry is the length of the gap between previous and current command
+    IRRawlenType rawlen;                ///< counter of entries in rawbuf
+    uint16_t initialGapTicks;   ///< Tick counts of the length of the gap between previous and current IR frame. Pre 4.4: rawbuf[0].
+    IRRawbufType rawbuf[RAW_BUFFER_LENGTH]; ///< raw data / tick counts per mark/space. With 8 bit we can only store up to 12.7 ms. First entry is empty to be backwards compatible.
 };
 
-#if (__INT_WIDTH__ < 32)
-typedef uint32_t IRRawDataType;
-#define BITS_IN_RAW_DATA_TYPE   32
-#else
-typedef uint64_t IRRawDataType;
-#define BITS_IN_RAW_DATA_TYPE   64
-#endif
 #include "IRProtocol.h"
 
 /*
@@ -166,7 +189,7 @@ struct decode_results {
     bool isRepeat;              // deprecated, moved to decodedIRData.flags ///< True if repeat of value is detected
 
 // next 3 values are copies of irparams_struct values - see above
-    uint16_t *rawbuf;       // deprecated, moved to decodedIRData.rawDataPtr->rawbuf ///< Raw intervals in 50uS ticks
+    uint16_t *rawbuf;           // deprecated, moved to decodedIRData.rawDataPtr->rawbuf ///< Raw intervals in 50uS ticks
     uint_fast8_t rawlen;        // deprecated, moved to decodedIRData.rawDataPtr->rawlen ///< Number of records in rawbuf
     bool overflow;              // deprecated, moved to decodedIRData.flags ///< true if IR raw code too long
 };
@@ -225,6 +248,9 @@ public:
     void printIRResultMinimal(Print *aSerial);
     void printIRResultRawFormatted(Print *aSerial, bool aOutputMicrosecondsInsteadOfTicks = true);
     void printIRResultAsCVariables(Print *aSerial);
+    uint8_t getMaximumMarkTicksFromRawData();
+    uint8_t getMaximumSpaceTicksFromRawData();
+    uint8_t getMaximumTicksFromRawData(bool aSearchSpaceInsteadOfMark);
     uint32_t getTotalDurationOfRawData();
 
     /*
@@ -256,6 +282,13 @@ public:
             IRRawlenType aStartOffset = 3);
 
     bool decodePulseDistanceWidthData(uint_fast8_t aNumberOfBits, IRRawlenType aStartOffset, uint16_t aOneMarkMicros,
+            uint16_t aOneSpaceMicros, uint16_t aZeroMarkMicros, bool aMSBfirst);
+
+    bool decodePulseDistanceWidthData(uint_fast8_t aNumberOfBits, IRRawlenType aStartOffset, uint16_t aOneMarkMicros,
+            uint16_t aZeroMarkMicros, uint16_t aOneSpaceMicros, uint16_t aZeroSpaceMicros, bool aMSBfirst)
+                    __attribute__ ((deprecated ("Please use decodePulseDistanceWidthData() with 6 parameters.")));
+
+    bool decodePulseDistanceWidthDataStrict(uint_fast8_t aNumberOfBits, IRRawlenType aStartOffset, uint16_t aOneMarkMicros,
             uint16_t aZeroMarkMicros, uint16_t aOneSpaceMicros, uint16_t aZeroSpaceMicros, bool aMSBfirst);
 
     bool decodeBiPhaseData(uint_fast8_t aNumberOfBits, IRRawlenType aStartOffset, uint_fast8_t aStartClockCount,
@@ -376,23 +409,21 @@ void setBlinkPin(uint8_t aFeedbackLEDPin) __attribute__ ((deprecated ("Please us
  * First MARK is the one after the long gap
  * Pulse parameters in microseconds
  */
-#if !defined(TOLERANCE_FOR_DECODERS_MARK_OR_SPACE_MATCHING)
-#define TOLERANCE_FOR_DECODERS_MARK_OR_SPACE_MATCHING    25 // Relative tolerance (in percent) for matchTicks(), matchMark() and matchSpace() functions used for protocol decoding.
+#if !defined(TOLERANCE_FOR_DECODERS_MARK_OR_SPACE_MATCHING_PERCENT)
+#define TOLERANCE_FOR_DECODERS_MARK_OR_SPACE_MATCHING_PERCENT    25 // Relative tolerance (in percent) for matchTicks(), matchMark() and matchSpace() functions used for protocol decoding.
 #endif
 
+#define TICKS(us)       ((us)/MICROS_PER_TICK)  // (us)/50
+#if MICROS_PER_TICK == 50 && TOLERANCE_FOR_DECODERS_MARK_OR_SPACE_MATCHING_PERCENT == 25           // Defaults
+#define TICKS_LOW(us)   ((us)/67 )              // 67 = MICROS_PER_TICK / ((100-25)/100) = (MICROS_PER_TICK * 100) / (100-25)
+#define TICKS_HIGH(us)  (((us)/40) + 1)         // 40 = MICROS_PER_TICK / ((100+25)/100) = (MICROS_PER_TICK * 100) / (100+25)
+#else
 /** Lower tolerance for comparison of measured data */
 //#define LTOL            (1.0 - (TOLERANCE/100.))
-#define LTOL            (100 - TOLERANCE_FOR_DECODERS_MARK_OR_SPACE_MATCHING)
+#define LTOL            (100 - TOLERANCE_FOR_DECODERS_MARK_OR_SPACE_MATCHING_PERCENT)
 /** Upper tolerance for comparison of measured data */
 //#define UTOL            (1.0 + (TOLERANCE/100.))
-#define UTOL            (100 + TOLERANCE_FOR_DECODERS_MARK_OR_SPACE_MATCHING)
-
-//#define TICKS_LOW(us)   ((int)(((us)*LTOL/MICROS_PER_TICK)))
-//#define TICKS_HIGH(us)  ((int)(((us)*UTOL/MICROS_PER_TICK + 1)))
-#if MICROS_PER_TICK == 50 && TOLERANCE_FOR_DECODERS_MARK_OR_SPACE_MATCHING == 25           // Defaults
-#define TICKS_LOW(us)   ((us)/67 )     // (us) / ((MICROS_PER_TICK:50 / LTOL:75 ) * 100)
-#define TICKS_HIGH(us)  (((us)/40) + 1)  // (us) / ((MICROS_PER_TICK:50 / UTOL:125) * 100) + 1
-#else
+#define UTOL            (100 + TOLERANCE_FOR_DECODERS_MARK_OR_SPACE_MATCHING_PERCENT)
 #define TICKS_LOW(us)   ((uint16_t ) ((long) (us) * LTOL / (MICROS_PER_TICK * 100) ))
 #define TICKS_HIGH(us)  ((uint16_t ) ((long) (us) * UTOL / (MICROS_PER_TICK * 100) + 1))
 #endif
@@ -524,8 +555,8 @@ public:
 
     void sendNECRepeat();
     uint32_t computeNECRawDataAndChecksum(uint16_t aAddress, uint16_t aCommand);
-    void sendNEC(uint16_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats);
-    void sendNEC2(uint16_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats);
+    void sendNEC(uint16_t aAddress, uint16_t aCommand, int_fast8_t aNumberOfRepeats);
+    void sendNEC2(uint16_t aAddress, uint16_t aCommand, int_fast8_t aNumberOfRepeats);
     void sendNECRaw(uint32_t aRawData, int_fast8_t aNumberOfRepeats = NO_REPEATS);
     // NEC variants
     void sendOnkyo(uint16_t aAddress, uint16_t aCommand, int_fast8_t aNumberOfRepeats);

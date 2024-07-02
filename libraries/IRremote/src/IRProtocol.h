@@ -47,7 +47,7 @@ typedef enum {
     LG,
     LG2,
     NEC,
-    NEC2, /* NEC with full frame as repeat */
+    NEC2, /* 10 NEC with full frame as repeat */
     ONKYO,
     PANASONIC,
     KASEIKYO,
@@ -57,7 +57,7 @@ typedef enum {
     KASEIKYO_MITSUBISHI,
     RC5,
     RC6,
-    SAMSUNG,
+    SAMSUNG, /* 20*/
     SAMSUNGLG,
     SAMSUNG48,
     SHARP,
@@ -67,9 +67,10 @@ typedef enum {
     BOSEWAVE,
     LEGO_PF,
     MAGIQUEST,
-    WHYNTER,
+    WHYNTER, /* 30 */
     FAST
 } decode_type_t;
+extern const char *const ProtocolNames[]; // The array of name strings for the decode_type_t enum
 
 #define SIRCS_12_PROTOCOL       12
 #define SIRCS_15_PROTOCOL       15
@@ -118,9 +119,14 @@ struct IRData {
     uint16_t numberOfBits; ///< Number of bits received for data (address + command + parity) - to determine protocol length if different length are possible.
     uint8_t flags;          ///< IRDATA_FLAGS_IS_REPEAT, IRDATA_FLAGS_WAS_OVERFLOW etc. See IRDATA_FLAGS_* definitions above
 
-    // These 2 variables allow to call resume() directly after decode, if no dump is required. Since 4.3.0.
-    IRRawlenType rawlen;        ///< counter of entries in rawbuf
-    uint16_t initialGap;        ///< rawbuf[0] contains the initial gap of the last frame.
+    /*
+     * These 2 variables allow to call resume() directly after decode.
+     * After resume(), decodedIRData.rawDataPtr->initialGapTicks and decodedIRData.rawDataPtr->rawlen are
+     * the first variables, which are overwritten by the next received frame.
+     * since 4.3.0.
+     */
+    IRRawlenType rawlen;        ///< counter of entries in rawbuf of last received frame.
+    uint16_t initialGapTicks;   ///< contains the initial gap (pre 4.4: the value in rawbuf[0]) of the last received frame.
 
     irparams_struct *rawDataPtr; ///< Pointer of the raw timing data to be decoded. Mainly the OverflowFlag and the data buffer filled by receiving ISR.
 };
@@ -137,9 +143,9 @@ struct PulseDistanceWidthProtocolConstants {
 /*
  * Definitions for member PulseDistanceWidthProtocolConstants.Flags
  */
-#define SUPPRESS_STOP_BIT_FOR_THIS_DATA 0x20 // Stop bit is otherwise sent for all pulse distance protocols.
-#define PROTOCOL_IS_MSB_FIRST           IRDATA_FLAGS_IS_MSB_FIRST
-#define PROTOCOL_IS_LSB_FIRST           IRDATA_FLAGS_IS_LSB_FIRST
+#define SUPPRESS_STOP_BIT       0x20 // Stop bit is otherwise sent for all pulse distance protocols, i.e. aOneSpaceMicros != aZeroSpaceMicros.
+#define PROTOCOL_IS_MSB_FIRST   IRDATA_FLAGS_IS_MSB_FIRST
+#define PROTOCOL_IS_LSB_FIRST   IRDATA_FLAGS_IS_LSB_FIRST
 
 /*
  * Carrier frequencies for various protocols

@@ -189,7 +189,7 @@ bool IRrecv::decodeDenon() {
     decodedIRData.command &= 0xFF;
 
     // Check for (auto) repeat
-    if (decodedIRData.initialGap < ((DENON_AUTO_REPEAT_DISTANCE + (DENON_AUTO_REPEAT_DISTANCE / 4)) / MICROS_PER_TICK)) {
+    if (decodedIRData.initialGapTicks < ((DENON_AUTO_REPEAT_DISTANCE + (DENON_AUTO_REPEAT_DISTANCE / 4)) / MICROS_PER_TICK)) {
         repeatCount++;
         if (repeatCount > 1) { // skip first auto repeat
             decodedIRData.flags = IRDATA_FLAGS_IS_REPEAT;
@@ -293,8 +293,8 @@ bool IRrecv::decodeDenonOld(decode_results *aResults) {
         return false;
     }
 
-    // Try to decode as Denon protocol
-    if (!decodePulseDistanceWidthData(DENON_BITS, 3, DENON_BIT_MARK, 0, DENON_ONE_SPACE, DENON_ZERO_SPACE, PROTOCOL_IS_MSB_FIRST)) {
+    // Try to decode as Denon protocol.
+    if (!decodePulseDistanceWidthData(DENON_BITS, 3, DENON_BIT_MARK, DENON_ONE_SPACE, 0, PROTOCOL_IS_MSB_FIRST)) {
         return false;
     }
 

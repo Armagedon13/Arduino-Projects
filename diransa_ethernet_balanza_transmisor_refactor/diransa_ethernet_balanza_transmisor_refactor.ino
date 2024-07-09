@@ -40,7 +40,7 @@ ezLED LED3(activityLedPin);
 
 #define switchPin 21  // Pin del interruptor
 
-bool apEnabled = false;
+bool programmingMode = false;
 
 static bool eth_connected = false;
 
@@ -150,7 +150,11 @@ typedef struct struct_message {
 } struct_message;
 
 struct_message payload;
-#define CHANNEL 6
+
+// Global copy of peerInfo
+#define CHANNEL 1
+#define PRINTSCANRESULTS 0
+#define DELETEBEFOREPAIR 0
 
 esp_now_peer_info_t peerInfo;
 
@@ -164,7 +168,16 @@ uint8_t broadcastAddress[] = { 0xc8, 0xf0, 0x9e, 0x52, 0xe9, 0x6c };  // MAC del
 void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   Serial.print("\r\nEstado del último paquete enviado:\t");
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Envío exitoso" : "Fallo en el envío");
-  LED3.toggle();
+  if (status == ESP_NOW_SEND_SUCCESS){
+    LED3.toggle();
+    LED3.turnOFF();
+    LED1.turnOFF();
+  }
+  else{
+    LED1.blink(100, 500);
+    LED3.turnOFF();
+    LED2.turnOFF();
+  }
 }
 
 // OTA--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -175,8 +188,6 @@ const char *password = "lalaland";
 IPAddress local_ip_AP(192, 168, 4, 22);
 IPAddress gateway_AP(192, 168, 4, 9);
 IPAddress subnet_AP(255, 255, 255, 0);
-
-bool prgm_mode = 0;
 
 // Ethernet----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 NetworkUDP Udp;                      // create UDP object
@@ -202,7 +213,6 @@ void setup() {
   SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
   ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
   //ETH.config(local_ip);  // Static IP, leave without this line to get IP via DHCP
-  
   while(!((uint32_t)ETH.localIP())) // Waiting for IP
   {
 
@@ -213,37 +223,13 @@ void setup() {
 
   Udp.begin(localUdpPort);  // Enable UDP listening to receive data
 
-  WiFi.mode(WIFI_STA);
-  delay(1000);
-  esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE);
-  // This is the mac address of the Master in Station Mode
-  Serial.print("STA MAC: "); Serial.println(WiFi.macAddress());
-  Serial.print("STA CHANNEL "); Serial.println(WiFi.channel());
-
-  if (esp_now_init() != ESP_OK) {
-    Serial.println("Error inicializando ESP-NOW");
-    return;
-  }
-
-  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
-  peerInfo.channel = 0;
-  peerInfo.encrypt = false;
-
-  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
-    Serial.println("Fallo al añadir el peer");
-    LED1.turnON();
-    return;
-  } else {
-    Serial.println("esp now iniciado");
-    LED2.blink(250, 750);
-  }
-
-  // Once ESPNow is successfully Init, we will register for Send CB to
-  // get the status of Trasnmitted packet
-  esp_now_register_send_cb(onDataSent);
-
   checkSwitch();
-  
+  // Initialize based on initial switch state
+  if (programmingMode) {
+    startProgrammingMode();
+  } else {
+    initEspNow();
+  }
 }
 
 // Loop ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -253,7 +239,7 @@ void loop() {
   LED3.loop();
   checkSwitch();
   
-  if (apEnabled) {
+  if (programmingMode) {
     ArduinoOTA.handle();
   }
 
@@ -276,9 +262,11 @@ void loop() {
       esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &payload, sizeof(payload));
       if (result == ESP_OK) {
         Serial.println("Envío exitoso");
-        LED3.blink(100, 100);
+        LED3.toggle();
+        LED1.turnOFF();
       } else {
         Serial.println("Error al enviar los datos");
+        LED1.blink(100, 500);
         LED3.turnOFF();
       }
     }
@@ -286,46 +274,95 @@ void loop() {
 }
 
 void checkSwitch() {
-  if (digitalRead(switchPin) == HIGH) {
-    if (!apEnabled) {
-      startAP();
-    }
-  } else {
-    if (apEnabled) {
-      stopAP();
+  static unsigned long lastDebounceTime = 0;
+  static int lastSwitchState = LOW;
+  static const unsigned long debounceDelay = 50;
+
+  int reading = digitalRead(switchPin);
+
+  if (reading != lastSwitchState) {
+    lastDebounceTime = millis();
+  }
+
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    if (reading != programmingMode) {
+      programmingMode = reading;
+      if (programmingMode) {
+        startProgrammingMode();
+      } else {
+        stopProgrammingMode();
+      }
+      delay(100);  // Add a small delay after mode change
     }
   }
+
+  lastSwitchState = reading;
 }
 
-void startAP() {
+void startProgrammingMode() {
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAPConfig(local_ip_AP, gateway_AP, subnet_AP);
   WiFi.softAP(ssid, password);
-  
-  // Reinitialize ESP-NOW
-  if (esp_now_init() != ESP_OK) {
-    Serial.println("Error initializing ESP-NOW");
-    return;
-  }
-  
-  // Re-add peer
-  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
-    Serial.println("Failed to add peer");
-    return;
-  }
-  
   setupOTA();
   
-  apEnabled = true;
-  Serial.println("WiFi AP started");
+  Serial.println("Programming mode started. WiFi AP active.");
+  LED1.blink(500, 500);
+  LED2.blink(500, 500);  // Blink green LED to indicate programming mode
+  LED3.blink(500, 500);
 }
 
-void stopAP() {
+void stopProgrammingMode() {
   WiFi.softAPdisconnect(true);
-  WiFi.mode(WIFI_STA);
+  WiFi.mode(WIFI_OFF);
+  delay(1000);
+  ArduinoOTA.end();
+  LED1.turnOFF();
+  LED2.turnOFF();  // Turn off green LED
+  LED3.turnOFF();
   
-  apEnabled = false;
-  Serial.println("WiFi AP stopped");
+  initEspNow();
+
+  Serial.println("Programming mode stopped. ESP-NOW active.");
+}
+
+void initEspNow() {
+  WiFi.mode(WIFI_STA);
+  delay(1000);
+  esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE);
+  // This is the mac address of the Master in Station Mode
+  Serial.print("STA MAC: "); Serial.println(WiFi.macAddress());
+  Serial.print("STA CHANNEL "); Serial.println(WiFi.channel());
+  
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("Error initializing ESP-NOW");
+    LED1.blink(100, 100);  // Blink red LED to indicate error
+    LED2.turnOFF();
+    return;
+  }
+
+  memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+  peerInfo.channel = 0;
+  peerInfo.encrypt = false;
+
+  int addPeerAttempts = 0;
+  while (esp_now_add_peer(&peerInfo) != ESP_OK && addPeerAttempts < 5) {
+    Serial.println("Failed to add peer, retrying...");
+    addPeerAttempts++;
+    LED1.blink(100, 100);  // Blink red LED to indicate error
+    LED2.turnOFF();
+    delay(100);
+  }
+
+  if (addPeerAttempts == 5) {
+    Serial.println("Failed to add peer after multiple attempts");
+    Serial.println("Restarting...");
+    ESP.restart();
+  }
+
+  esp_now_register_send_cb(onDataSent);
+  Serial.println("ESP-NOW initialized");
+  LED2.blink(250, 750);  // Blink green LED to indicate ESP-NOW is paired
+  LED1.turnOFF();
 }
 
 // Setup Ota -------------------------------------------------------------------------------------------------------------------------------------------------------------------

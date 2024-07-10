@@ -1,13 +1,17 @@
+/*
+Transmisor
+*/
+
 #ifndef ETH_PHY_TYPE
 #define ETH_PHY_TYPE ETH_PHY_W5500
 #define ETH_PHY_ADDR 1
-#define ETH_PHY_CS   15
-#define ETH_PHY_IRQ  4
-#define ETH_PHY_RST  5
+#define ETH_PHY_CS 15
+#define ETH_PHY_IRQ 4
+#define ETH_PHY_RST 5
 #endif
 
 // SPI pins
-#define ETH_SPI_SCK  14
+#define ETH_SPI_SCK 14
 #define ETH_SPI_MISO 12
 #define ETH_SPI_MOSI 13
 
@@ -17,11 +21,11 @@
 
 #include <esp_now.h>
 #include <WiFi.h>
-#include <esp_wifi.h> // only for esp_wifi_set_channel()
+#include <esp_wifi.h>  // only for esp_wifi_set_channel()
 
 #include <ArduinoOTA.h>
 
-#include <ezLED.h> // ezLED library
+#include <ezLED.h>  // ezLED library
 
 // Definir pines para LEDs y switch
 /*
@@ -152,9 +156,7 @@ typedef struct struct_message {
 struct_message payload;
 
 // Global copy of peerInfo
-#define CHANNEL 1
-#define PRINTSCANRESULTS 0
-#define DELETEBEFOREPAIR 0
+#define CHANNEL 6
 
 esp_now_peer_info_t peerInfo;
 
@@ -164,23 +166,79 @@ byte mac[] = { 0xc8, 0xf0, 0x9e, 0x52, 0x78, 0x94 };
 //Receptor c8:f0:9e:52:e9:6c
 uint8_t broadcastAddress[] = { 0xc8, 0xf0, 0x9e, 0x52, 0xe9, 0x6c };  // MAC del segundo ESP32
 
+// ESP-NOW Hearthbeat--------------------------------------------------------------------------------------------------------------------------------------------
+#define HEARTBEAT_INTERVAL 5000   // Send heartbeat every 5 seconds
+#define CONNECTION_TIMEOUT 10000  // Consider disconnected if no heartbeat for 15 seconds
+
+unsigned long lastHeartbeatSent = 0;
+unsigned long lastHeartbeatReceived = 0;
+bool isConnected = false;
+
+typedef struct struct_heartbeat {
+  uint32_t timestamp;
+} struct_heartbeat;
+
+struct_heartbeat heartbeat;
+
+// Function to send heartbeat
+void sendHeartbeat() {
+  if (esp_now_is_peer_exist(broadcastAddress) == false) {
+    Serial.println("Peer not found, re-adding...");
+    esp_now_peer_info_t peerInfo;
+    memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+    peerInfo.channel = 0;
+    peerInfo.encrypt = false;
+    esp_now_add_peer(&peerInfo);
+  }
+
+  struct_heartbeat heartbeat;
+  heartbeat.timestamp = millis();
+  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&heartbeat, sizeof(struct_heartbeat));
+  if (result == ESP_OK) {
+    Serial.println("Heartbeat sent to Receiver");
+  } else {
+    Serial.print("Error sending heartbeat to Receiver: ");
+    Serial.println(esp_err_to_name(result));
+  }
+}
+
+void checkConnectionStatus() {
+  if (millis() - lastHeartbeatReceived > CONNECTION_TIMEOUT) {
+    if (isConnected) {
+      isConnected = false;
+      Serial.println("Connection to Receiver lost");
+      LED1.blink(500, 500);
+      LED2.turnOFF();
+    }
+  } else {
+    if (!isConnected) {
+      isConnected = true;
+      Serial.println("Connection to Receiver established");
+      LED2.blink(100, 500);
+      LED1.turnOFF();
+    }
+  }
+}
+
+// ESP-NOW DATASEND and DATARECIVE --------------------------------------------------------------------------------------------------------------------------------------------------------------------
 // callback when data is sent
 void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   Serial.print("\r\nEstado del último paquete enviado:\t");
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Envío exitoso" : "Fallo en el envío");
-  if (status == ESP_NOW_SEND_SUCCESS){
-    LED3.toggle();
+  if (status == ESP_NOW_SEND_SUCCESS) {
+    LED3.turnON();
     LED3.turnOFF();
-    LED1.turnOFF();
   }
-  else{
-    LED1.blink(100, 500);
-    LED3.turnOFF();
-    LED2.turnOFF();
+}
+// callback when data is recived
+void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, int len) {
+  if (len == sizeof(struct_heartbeat)) {
+    lastHeartbeatReceived = millis();
+    Serial.println("Heartbeat received from Receiver");
   }
 }
 
-// OTA--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// OTA -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const char *ssid = "Transmisor PGR-MODE-1";
 const char *password = "lalaland";
 
@@ -189,8 +247,8 @@ IPAddress local_ip_AP(192, 168, 4, 22);
 IPAddress gateway_AP(192, 168, 4, 9);
 IPAddress subnet_AP(255, 255, 255, 0);
 
-// Ethernet----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-NetworkUDP Udp;                      // create UDP object
+// Ethernet --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+NetworkUDP Udp;                    // create UDP object
 unsigned int localUdpPort = 1001;  // Local port number
 
 IPAddress local_ip(192, 168, 0, 140);
@@ -199,7 +257,7 @@ IPAddress subnet(255, 255, 255, 0);
 IPAddress dns1(8, 8, 8, 8);
 IPAddress dns2 = (uint32_t)0x00000000;
 
-// Setup ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Setup -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
   LED1.turnOFF();
@@ -213,9 +271,8 @@ void setup() {
   SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
   ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
   //ETH.config(local_ip);  // Static IP, leave without this line to get IP via DHCP
-  while(!((uint32_t)ETH.localIP())) // Waiting for IP
+  while (!((uint32_t)ETH.localIP()))  // Waiting for IP
   {
-
   }
   Serial.println("Connected");
   Serial.print("IP Address:");
@@ -234,18 +291,29 @@ void setup() {
 
 // Loop ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void loop() {
+  // Loop variables
   LED1.loop();
   LED2.loop();
   LED3.loop();
   checkSwitch();
-  
+  unsigned long currentMillis = millis();
+  // OTA handle
   if (programmingMode) {
     ArduinoOTA.handle();
   }
+  else{
+    // Heartbeat Watchdog
+    if (currentMillis - lastHeartbeatSent >= HEARTBEAT_INTERVAL) {
+    sendHeartbeat();
+    lastHeartbeatSent = currentMillis;
+  }
+  checkConnectionStatus();
+  }
 
+  // Ethernet data udp handle
   if (eth_connected) {
     int packetSize = Udp.parsePacket();  // Get the current team header packet length
-    if (packetSize) {                     // If data is available
+    if (packetSize) {                    // If data is available
       int len = Udp.read(payload.data, 250);
       if (len > 0) {
         payload.data[len] = '\0';
@@ -259,7 +327,7 @@ void loop() {
       Serial.print("From Port: ");
       Serial.println(Udp.remotePort());
 
-      esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &payload, sizeof(payload));
+      esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&payload, sizeof(payload));
       if (result == ESP_OK) {
         Serial.println("Envío exitoso");
         LED3.toggle();
@@ -300,11 +368,15 @@ void checkSwitch() {
 }
 
 void startProgrammingMode() {
+  LED1.turnOFF();
+  LED2.turnOFF();
+  LED3.turnOFF();
+  delay(10);
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAPConfig(local_ip_AP, gateway_AP, subnet_AP);
   WiFi.softAP(ssid, password);
   setupOTA();
-  
+
   Serial.println("Programming mode started. WiFi AP active.");
   LED1.blink(500, 500);
   LED2.blink(500, 500);  // Blink green LED to indicate programming mode
@@ -319,7 +391,7 @@ void stopProgrammingMode() {
   LED1.turnOFF();
   LED2.turnOFF();  // Turn off green LED
   LED3.turnOFF();
-  
+
   initEspNow();
 
   Serial.println("Programming mode stopped. ESP-NOW active.");
@@ -330,9 +402,11 @@ void initEspNow() {
   delay(1000);
   esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE);
   // This is the mac address of the Master in Station Mode
-  Serial.print("STA MAC: "); Serial.println(WiFi.macAddress());
-  Serial.print("STA CHANNEL "); Serial.println(WiFi.channel());
-  
+  Serial.print("STA MAC: ");
+  Serial.println(WiFi.macAddress());
+  Serial.print("STA CHANNEL ");
+  Serial.println(WiFi.channel());
+
   if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
     LED1.blink(100, 100);  // Blink red LED to indicate error
@@ -344,25 +418,19 @@ void initEspNow() {
   peerInfo.channel = 0;
   peerInfo.encrypt = false;
 
-  int addPeerAttempts = 0;
-  while (esp_now_add_peer(&peerInfo) != ESP_OK && addPeerAttempts < 5) {
-    Serial.println("Failed to add peer, retrying...");
-    addPeerAttempts++;
-    LED1.blink(100, 100);  // Blink red LED to indicate error
+  if (esp_now_add_peer(&peerInfo) != ESP_OK){
+    Serial.println("Failed to add peer");
+    LED1.blink(200, 200);
     LED2.turnOFF();
-    delay(100);
-  }
-
-  if (addPeerAttempts == 5) {
-    Serial.println("Failed to add peer after multiple attempts");
-    Serial.println("Restarting...");
-    ESP.restart();
+    return;
+  } else{
+    LED2.blink(250, 750);  // Blink green LED to indicate ESP-NOW is paired
+    LED1.turnOFF();
   }
 
   esp_now_register_send_cb(onDataSent);
+  esp_now_register_recv_cb(onDataReceive);
   Serial.println("ESP-NOW initialized");
-  LED2.blink(250, 750);  // Blink green LED to indicate ESP-NOW is paired
-  LED1.turnOFF();
 }
 
 // Setup Ota -------------------------------------------------------------------------------------------------------------------------------------------------------------------

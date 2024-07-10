@@ -1,17 +1,17 @@
 /*
-Transmisor
+Receptor
 */
 
 #ifndef ETH_PHY_TYPE
 #define ETH_PHY_TYPE ETH_PHY_W5500
 #define ETH_PHY_ADDR 1
-#define ETH_PHY_CS   15
-#define ETH_PHY_IRQ  4
-#define ETH_PHY_RST  5
+#define ETH_PHY_CS 15
+#define ETH_PHY_IRQ 4
+#define ETH_PHY_RST 5
 #endif
 
 // SPI pins
-#define ETH_SPI_SCK  14
+#define ETH_SPI_SCK 14
 #define ETH_SPI_MISO 12
 #define ETH_SPI_MOSI 13
 
@@ -46,7 +46,7 @@ ezLED LED3(activityLedPin);
 
 bool programmingMode = false;
 
-static bool eth_connected = false;
+bool eth_connected = false;
 
 // ALL INTERNET EVENTS
 // WARNING: onEvent is called from a separate FreeRTOS task (thread)!
@@ -96,16 +96,16 @@ void onEvent(arduino_event_id_t event) {
       Serial.println("WiFi AP access point started");
       break;
     case ARDUINO_EVENT_WIFI_AP_STOP:
-      Serial.println("WiFi AP access point stopped");
+      Serial.println("WiFi AP access point  stopped");
       break;
     case ARDUINO_EVENT_WIFI_AP_STACONNECTED:
-      Serial.println("Client AP_STA connected");
+      Serial.println("Client AP connected");
       break;
     case ARDUINO_EVENT_WIFI_AP_STADISCONNECTED:
-      Serial.println("Client AP_STA disconnected");
+      Serial.println("Client AP disconnected");
       break;
     case ARDUINO_EVENT_WIFI_AP_STAIPASSIGNED:
-      Serial.println("Assigned AP_STA IP address to client");
+      Serial.println("Assigned AP IP address to client");
       break;
     case ARDUINO_EVENT_WIFI_AP_PROBEREQRECVED:
       Serial.println("Received AP probe request");
@@ -148,60 +148,132 @@ void onEvent(arduino_event_id_t event) {
   }
 }
 
-// ESP NOW ------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Ethernet------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Transmisor c8:f0:9e:52:78:94
+// { 0xc8, 0xf0, 0x9e, 0x52, 0x78, 0x94 }
+
+// Receptor c8:f0:9e:52:e9:6c
+// { 0xc8, 0xf0, 0x9e, 0x52, 0xe9, 0x6c }
+
+uint8_t broadcastAddress[] = { 0xc8, 0xf0, 0x9e, 0x52, 0x78, 0x94 };  // MAC del segundo ESP32
+NetworkUDP Udp;                       // create UDP object
+
+// Dirección IP y puerto del servidor UDP
+IPAddress udpServerIP(192, 168, 0, 140);   // Cambia esta dirección IP a la del servidor UDP
+unsigned int replyPort = 1001;      // port to send response to
+
+// ESP NOW-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Define the structure for the received message
 typedef struct struct_message {
   char data[250];
 } struct_message;
 
-struct_message payload;
+// Create a struct_message instance to hold the received data
+struct_message incomingMessage;
 
-// Global copy of peerInfo
-#define CHANNEL 1
+#define CHANNEL 6
 
-esp_now_peer_info_t peerInfo;
+// ESP-NOW Hearthbeat ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#define HEARTBEAT_INTERVAL 5000
+#define CONNECTION_TIMEOUT 10000
 
-//Transmisor c8:f0:9e:52:78:94
-byte mac[] = { 0xc8, 0xf0, 0x9e, 0x52, 0x78, 0x94 };
+unsigned long lastHeartbeatSent = 0;
+unsigned long lastHeartbeatReceived = 0;
+bool isConnected = false;
 
-//Receptor c8:f0:9e:52:e9:6c
-uint8_t broadcastAddress[] = { 0xc8, 0xf0, 0x9e, 0x52, 0xe9, 0x6c };  // MAC del segundo ESP32
+typedef struct struct_heartbeat {
+  uint32_t timestamp;
+} struct_heartbeat;
 
-// callback when data is sent
-void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
-  Serial.print("\r\nEstado del último paquete enviado:\t");
-  Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Envío exitoso" : "Fallo en el envío");
-  if (status == ESP_NOW_SEND_SUCCESS){
-    LED3.toggle();
-    LED3.turnOFF();
-    LED1.turnOFF();
+struct_heartbeat heartbeat;
+
+void sendHeartbeat() {
+  if (esp_now_is_peer_exist(broadcastAddress) == false) {
+    Serial.println("Peer not found, re-adding...");
+    esp_now_peer_info_t peerInfo;
+    memset(&peerInfo, 0, sizeof(esp_now_peer_info_t));
+    memcpy(peerInfo.peer_addr, broadcastAddress, 6);
+    peerInfo.channel = 0;
+    peerInfo.encrypt = false;
+    esp_err_t addResult = esp_now_add_peer(&peerInfo);
+    if (addResult != ESP_OK) {
+      Serial.print("Error re-adding peer: ");
+      Serial.println(esp_err_to_name(addResult));
+      return;
+    }
   }
-  else{
-    LED1.blink(100, 500);
-    LED3.turnOFF();
-    LED2.turnOFF();
+
+  struct_heartbeat heartbeat;
+  heartbeat.timestamp = millis();
+  esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&heartbeat, sizeof(struct_heartbeat));
+  if (result == ESP_OK) {
+    Serial.println("Heartbeat sent to Transmitter");
+  } else {
+    Serial.print("Error sending heartbeat to Transmitter: ");
+    Serial.println(esp_err_to_name(result));
   }
 }
 
-// OTA--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-const char *ssid = "Transmisor PGR-MODE-1";
+void checkConnectionStatus() {
+  if (millis() - lastHeartbeatReceived > CONNECTION_TIMEOUT) {
+    if (isConnected) {
+      isConnected = false;
+      Serial.println("Connection to Receiver lost");
+      LED1.blink(500, 500);
+      LED2.turnOFF();
+    }
+  } else {
+    if (!isConnected) {
+      isConnected = true;
+      Serial.println("Connection to Receiver established");
+      LED2.blink(100, 500);
+      LED1.turnOFF();
+    }
+  }
+}
+
+// ESP-NOW DATASEND DATARECIVE ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, int len) {
+  if (len == sizeof(struct_heartbeat)) {
+    lastHeartbeatReceived = millis();
+    Serial.println("Heartbeat received from Transmitter");
+    
+    // Send heartbeat response
+    sendHeartbeat();
+  } else if (len == sizeof(struct_message)) {
+    memcpy(&incomingMessage, incomingData, sizeof(incomingMessage));
+    Serial.print("Bytes received: ");
+    Serial.println(len);
+    Serial.print("Message: ");
+    Serial.println(incomingMessage.data);
+
+    // Send data via Ethernet UDP
+    if (eth_connected) {
+      Udp.beginPacket(udpServerIP, replyPort);
+      Udp.write((const uint8_t*)incomingMessage.data, strlen(incomingMessage.data));
+      if (Udp.endPacket()) {
+        Serial.println("UDP packet sent successfully");
+      } else {
+        Serial.println("Failed to send UDP packet");
+      }
+      Serial.print("Sent to IP: ");
+      Serial.print(udpServerIP);
+      Serial.print(", port ");
+      Serial.println(replyPort);
+    }
+  }
+}
+
+// OTA----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+const char *ssid = "Receptor PGR-MODE";
 const char *password = "lalaland";
 
 // OTA AP Static IP configuration
-IPAddress local_ip_AP(192, 168, 4, 22);
-IPAddress gateway_AP(192, 168, 4, 9);
+IPAddress local_ip_AP(192, 168, 4, 23);
+IPAddress gateway_AP(192, 168, 4, 10);
 IPAddress subnet_AP(255, 255, 255, 0);
 
-// Ethernet----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-NetworkUDP Udp;                      // create UDP object
-unsigned int localUdpPort = 1001;  // Local port number
-
-IPAddress local_ip(192, 168, 0, 140);
-IPAddress gateway(192, 168, 0, 1);
-IPAddress subnet(255, 255, 255, 0);
-IPAddress dns1(8, 8, 8, 8);
-IPAddress dns2 = (uint32_t)0x00000000;
-
-// Setup ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Setup --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
   LED1.turnOFF();
@@ -219,11 +291,12 @@ void setup() {
   {
 
   }
+
   Serial.println("Connected");
   Serial.print("IP Address:");
   Serial.println(ETH.localIP());
 
-  Udp.begin(localUdpPort);  // Enable UDP listening to receive data
+  //Udp.begin(localUdpPort);  // Enable UDP listening to receive data
 
   checkSwitch();
   // Initialize based on initial switch state
@@ -234,47 +307,27 @@ void setup() {
   }
 }
 
-// Loop ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Loop -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void loop() {
   LED1.loop();
   LED2.loop();
   LED3.loop();
   checkSwitch();
-  
+  unsigned long currentMillis = millis();
+
   if (programmingMode) {
     ArduinoOTA.handle();
   }
-
-  if (eth_connected) {
-    int packetSize = Udp.parsePacket();  // Get the current team header packet length
-    if (packetSize) {                     // If data is available
-      int len = Udp.read(payload.data, 250);
-      if (len > 0) {
-        payload.data[len] = '\0';
-      }
-
-      Serial.println();
-      Serial.print("Received: ");
-      Serial.println(payload.data);
-      Serial.print("From IP: ");
-      Serial.println(Udp.remoteIP());
-      Serial.print("From Port: ");
-      Serial.println(Udp.remotePort());
-
-      esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *) &payload, sizeof(payload));
-      if (result == ESP_OK) {
-        Serial.println("Envío exitoso");
-        LED3.toggle();
-        LED1.turnOFF();
-      } else {
-        Serial.println("Error al enviar los datos");
-        LED1.blink(100, 500);
-        LED3.turnOFF();
-      }
+  else{
+    //Heartbeat Watchdog
+    if (currentMillis - lastHeartbeatSent >= HEARTBEAT_INTERVAL) {
+      sendHeartbeat();
+      lastHeartbeatSent = currentMillis;
     }
+    checkConnectionStatus();
   }
+  
 }
-
 void checkSwitch() {
   static unsigned long lastDebounceTime = 0;
   static int lastSwitchState = LOW;
@@ -335,45 +388,34 @@ void initEspNow() {
   WiFi.mode(WIFI_STA);
   delay(1000);
   esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE);
-  // This is the mac address of the Master in Station Mode
-  Serial.print("STA MAC: "); Serial.println(WiFi.macAddress());
-  Serial.print("STA CHANNEL "); Serial.println(WiFi.channel());
   
+  Serial.print("Initializing ESP-NOW... ");
   if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
-    LED1.blink(100, 100);  // Blink red LED to indicate error
-    LED2.turnOFF();
     return;
   }
-
+  Serial.println("Done");
+  
+  Serial.print("Registering receive callback... ");
+  esp_now_register_recv_cb(onDataReceive);
+  Serial.println("Done");
+  
+  Serial.print("Adding peer... ");
+  esp_now_peer_info_t peerInfo;
   memcpy(peerInfo.peer_addr, broadcastAddress, 6);
   peerInfo.channel = 0;
   peerInfo.encrypt = false;
-
-  int addPeerAttempts = 0;
-  while (esp_now_add_peer(&peerInfo) != ESP_OK && addPeerAttempts < 5) {
-    Serial.println("Failed to add peer, retrying...");
-    addPeerAttempts++;
-    LED1.blink(100, 100);  // Blink red LED to indicate error
-    LED2.turnOFF();
-    delay(100);
+  if (esp_now_add_peer(&peerInfo) != ESP_OK) {
+    Serial.println("Failed to add peer");
+    return;
   }
-
-  if (addPeerAttempts == 5) {
-    Serial.println("Failed to add peer after multiple attempts");
-    Serial.println("Restarting...");
-    ESP.restart();
-  }
-
-  esp_now_register_send_cb(onDataSent);
-  Serial.println("ESP-NOW initialized");
-  LED2.blink(250, 750);  // Blink green LED to indicate ESP-NOW is paired
-  LED1.turnOFF();
+  Serial.println("Done");
+  
+  Serial.println("ESP-NOW Receiver Initialized");
 }
 
-// Setup Ota -------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void setupOTA() {
-  ArduinoOTA.setHostname("esp32-transmisor");
+  ArduinoOTA.setHostname("esp32-receptor");
   ArduinoOTA.onStart([]() {
     String type;
     if (ArduinoOTA.getCommand() == U_FLASH) {

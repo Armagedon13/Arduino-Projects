@@ -1,3 +1,7 @@
+/*
+Receptor
+*/
+
 #ifndef ETH_PHY_TYPE
 #define ETH_PHY_TYPE ETH_PHY_W5500
 #define ETH_PHY_ADDR 1
@@ -13,51 +17,36 @@
 
 #include <ETH.h>
 #include <SPI.h>
+#include <NetworkUdp.h>
 
 #include <esp_now.h>
 #include <WiFi.h>
-#include <NetworkUdp.h>
+#include <esp_wifi.h> // only for esp_wifi_set_channel()
 
 #include <ArduinoOTA.h>
 
+#include <ezLED.h> // ezLED library
+
 // Definir pines para LEDs y switch
-const int greenLedPin = 2;
-const int redLedPin = 23;
-const int activityLedPin = 22;
-const int switchPin = 21;  // Pin del interruptor
+/*
+led rojo: error
+led verde: estado espnow
+led amarillo: comunicacion
+*/
 
-// Variables de tiempo
-unsigned long previousMillisGreen = 0;
-unsigned long previousMillisActivity = 0;
+#define redLedPin 19
+#define greenLedPin 23
+#define activityLedPin 22
 
-const long intervalGreen = 500;
-const long intervalActivity = 50;
+ezLED LED1(redLedPin);
+ezLED LED2(greenLedPin);
+ezLED LED3(activityLedPin);
 
-bool greenLedState = LOW;
-bool activityLedState = LOW;
+#define switchPin 21  // Pin del interruptor
 
-bool switchState = LOW;
-bool previousSwitchState = LOW;
+bool programmingMode = false;
 
-// ESP NOW
-// Define the structure for the received message
-typedef struct struct_message {
-  char data[250];
-} struct_message;
-
-// Create a struct_message instance to hold the received data
-struct_message incomingMessage;
-
-#define ESPNOW_WIFI_CHANNEL 6
-
-// Ethernet
 bool eth_connected = false;
-uint8_t mac[] = { 0xc8, 0xf0, 0x9e, 0x52, 0xe9, 0x6c };  // MAC del segundo ESP32
-NetworkUDP Udp;                       // create UDP object
-
-// Dirección IP y puerto del servidor UDP
-IPAddress udpServerIP(192, 168, 0, 140);   // Cambia esta dirección IP a la del servidor UDP
-unsigned int replyPort = 1001;      // port to send response to
 
 // ALL INTERNET EVENTS
 // WARNING: onEvent is called from a separate FreeRTOS task (thread)!
@@ -159,6 +148,25 @@ void onEvent(arduino_event_id_t event) {
   }
 }
 
+// Ethernet------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+uint8_t mac[] = { 0xc8, 0xf0, 0x9e, 0x52, 0xe9, 0x6c };  // MAC del segundo ESP32
+NetworkUDP Udp;                       // create UDP object
+
+// Dirección IP y puerto del servidor UDP
+IPAddress udpServerIP(192, 168, 0, 140);   // Cambia esta dirección IP a la del servidor UDP
+unsigned int replyPort = 1001;      // port to send response to
+
+// ESP NOW-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// Define the structure for the received message
+typedef struct struct_message {
+  char data[250];
+} struct_message;
+
+// Create a struct_message instance to hold the received data
+struct_message incomingMessage;
+
+#define CHANNEL 6
+
 // Función de callback para recibir datos ESP-NOW
 void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, int len) {
   memcpy(&incomingMessage, incomingData, sizeof(incomingMessage));
@@ -183,7 +191,7 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
   }
 }
 
-// OTA
+// OTA----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const char *ssid = "Receptor PGR-MODE";
 const char *password = "lalaland";
 
@@ -192,21 +200,116 @@ IPAddress local_ip_AP(192, 168, 4, 23);
 IPAddress gateway_AP(192, 168, 4, 10);
 IPAddress subnet_AP(255, 255, 255, 0);
 
+// Setup --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
-  pinMode(greenLedPin, OUTPUT);
-  pinMode(redLedPin, OUTPUT);
-  pinMode(activityLedPin, OUTPUT);
-  pinMode(switchPin, INPUT_PULLUP); // Configurar el pin del interruptor
+  LED1.turnOFF();
+  LED2.turnOFF();
+  LED3.turnOFF();
+  pinMode(switchPin, INPUT_PULLUP);  // Configurar el pin del interruptor
 
-  // Init in WIFI AP_STA
+  // Ethernet INIT
+  Network.onEvent(onEvent);
+
+  SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
+  ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
+  //ETH.config(local_ip);  // Static IP, leave without this line to get IP via DHCP
+  while(!((uint32_t)ETH.localIP())) // Waiting for IP
+  {
+
+  }
+
+  Serial.println("Connected");
+  Serial.print("IP Address:");
+  Serial.println(ETH.localIP());
+
+  //Udp.begin(localUdpPort);  // Enable UDP listening to receive data
+
+  checkSwitch();
+  // Initialize based on initial switch state
+  if (programmingMode) {
+    startProgrammingMode();
+  } else {
+    initEspNow();
+  }
+}
+
+// Loop -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+void loop() {
+  LED1.loop();
+  LED2.loop();
+  LED3.loop();
+  checkSwitch();
+
+  if (programmingMode) {
+    ArduinoOTA.handle();
+  }
+  
+}
+void checkSwitch() {
+  static unsigned long lastDebounceTime = 0;
+  static int lastSwitchState = LOW;
+  static const unsigned long debounceDelay = 50;
+
+  int reading = digitalRead(switchPin);
+
+  if (reading != lastSwitchState) {
+    lastDebounceTime = millis();
+  }
+
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    if (reading != programmingMode) {
+      programmingMode = reading;
+      if (programmingMode) {
+        startProgrammingMode();
+      } else {
+        stopProgrammingMode();
+      }
+      delay(100);  // Add a small delay after mode change
+    }
+  }
+
+  lastSwitchState = reading;
+}
+
+void startProgrammingMode() {
+  LED1.turnOFF();
+  LED2.turnOFF();
+  LED3.turnOFF();
+  delay(10);
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.softAPConfig(local_ip_AP, gateway_AP, subnet_AP);
+  WiFi.softAP(ssid, password);
+  setupOTA();
+  
+  Serial.println("Programming mode started. WiFi AP active.");
+  LED1.blink(500, 500);
+  LED2.blink(500, 500);  // Blink green LED to indicate programming mode
+  LED3.blink(500, 500);
+}
+
+void stopProgrammingMode() {
+  WiFi.softAPdisconnect(true);
+  WiFi.mode(WIFI_OFF);
+  delay(1000);
+  ArduinoOTA.end();
+  LED1.turnOFF();
+  LED2.turnOFF();  // Turn off green LED
+  LED3.turnOFF();
+  
+  initEspNow();
+
+  Serial.println("Programming mode stopped. ESP-NOW active.");
+}
+
+void initEspNow() {
   WiFi.mode(WIFI_STA);
-  WiFi.setChannel(ESPNOW_WIFI_CHANNEL);
-  Serial.println("Wi-Fi parameters:");
-  Serial.println("  Mode: STA");
-  Serial.println("  MAC Address: " + WiFi.macAddress());
-  Serial.printf("  Channel: %d\n", ESPNOW_WIFI_CHANNEL);
-
+  delay(1000);
+  esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE);
+  // This is the mac address of the Master in Station Mode
+  Serial.print("STA MAC: "); Serial.println(WiFi.macAddress());
+  Serial.print("STA CHANNEL "); Serial.println(WiFi.channel());
+  
   // Initialize ESP-NOW
   if (esp_now_init() != ESP_OK) {
     Serial.println("Error initializing ESP-NOW");
@@ -215,41 +318,6 @@ void setup() {
   // Register the receive callback function
   esp_now_register_recv_cb(onDataReceive);
   Serial.println("ESP-NOW Receiver Initialized");
-
-  Network.onEvent(onEvent);
-  
-  SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
-  ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
-  //ETH.config(local_ip, gateway, subnet, dns1, dns2);  // Static IP, leave without this line to get IP via DHCP
-
-  while(!((uint32_t)ETH.localIP())) // Waiting for IP
-  {
-
-  }
-  Serial.println("Connected");
-  Serial.print("IP Address:");
-  Serial.println(ETH.localIP());
-
-}
-
-void loop() {
-  // ArduinoOTA.handle();
-  // unsigned long currentMillis = millis();
-
-  // switchState = digitalRead(switchPin);
-  // if (switchState == HIGH && previousSwitchState == HIGH && WL_DISCONNECTED) {
-  //   WiFi.softAPConfig(local_ip_AP, gateway_AP, subnet_AP);
-  //   WiFi.softAP(ssid, password, ESPNOW_WIFI_CHANNEL);
-  //   Serial.print("AP IP:");
-  //   Serial.println(WiFi.softAPIP());
-  //   Serial.println("Start AP Programming mode");
-  //   setupOTA();
-  //   previousSwitchState = LOW;
-  // } else if (switchState == LOW && previousSwitchState == LOW && WL_CONNECTED) {
-  //   WiFi.softAPdisconnect(true);
-  //   Serial.println("Stop AP Programming mode");
-  //   previousSwitchState = HIGH;
-  // }
 }
 
 void setupOTA() {

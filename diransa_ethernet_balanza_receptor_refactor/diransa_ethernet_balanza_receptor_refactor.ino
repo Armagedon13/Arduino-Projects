@@ -211,21 +211,27 @@ void sendHeartbeat() {
   } else {
     Serial.print("Error sending heartbeat to Transmitter: ");
     Serial.println(esp_err_to_name(result));
+    // Optionally, you can update the connection status here as well
+    isConnected = false;
+    LED1.blink(500, 500);
+    LED2.turnOFF();
   }
 }
 
+
 void checkConnectionStatus() {
-  if (millis() - lastHeartbeatReceived > CONNECTION_TIMEOUT) {
+  unsigned long currentTime = millis();
+  if (currentTime - lastHeartbeatReceived > CONNECTION_TIMEOUT) {
     if (isConnected) {
       isConnected = false;
-      Serial.println("Connection to Receiver lost");
+      Serial.println("Connection to Transmitter lost");
       LED1.blink(500, 500);
       LED2.turnOFF();
     }
   } else {
     if (!isConnected) {
       isConnected = true;
-      Serial.println("Connection to Receiver established");
+      Serial.println("Connection to Transmitter established");
       LED2.blink(100, 500);
       LED1.turnOFF();
     }
@@ -287,14 +293,6 @@ void setup() {
   SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
   ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
   //ETH.config(local_ip);  // Static IP, leave without this line to get IP via DHCP
-  while(!((uint32_t)ETH.localIP())) // Waiting for IP
-  {
-
-  }
-
-  Serial.println("Connected");
-  Serial.print("IP Address:");
-  Serial.println(ETH.localIP());
 
   //Udp.begin(localUdpPort);  // Enable UDP listening to receive data
 
@@ -326,7 +324,15 @@ void loop() {
     }
     checkConnectionStatus();
   }
-  
+  if (eth_connected && !((uint32_t)ETH.localIP())){
+    while(!((uint32_t)ETH.localIP())) // Waiting for IP
+    {
+
+    }
+    Serial.println("Connected");
+    Serial.print("IP Address:");
+    Serial.println(ETH.localIP());
+  }
 }
 void checkSwitch() {
   static unsigned long lastDebounceTime = 0;
@@ -386,8 +392,8 @@ void stopProgrammingMode() {
 
 void initEspNow() {
   WiFi.mode(WIFI_STA);
-  delay(1000);
   esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE);
+  delay(1000);
   
   Serial.print("Initializing ESP-NOW... ");
   if (esp_now_init() != ESP_OK) {
@@ -395,22 +401,31 @@ void initEspNow() {
     return;
   }
   Serial.println("Done");
-  
+
   Serial.print("Registering receive callback... ");
   esp_now_register_recv_cb(onDataReceive);
   Serial.println("Done");
-  
+
   Serial.print("Adding peer... ");
   esp_now_peer_info_t peerInfo;
+  memset(&peerInfo, 0, sizeof(esp_now_peer_info_t));
   memcpy(peerInfo.peer_addr, broadcastAddress, 6);
   peerInfo.channel = 0;
   peerInfo.encrypt = false;
   if (esp_now_add_peer(&peerInfo) != ESP_OK) {
     Serial.println("Failed to add peer");
+    Serial.print("Error: ");
+    Serial.println(esp_err_to_name(esp_now_add_peer(&peerInfo)));
+    LED1.blink(200, 200);
+    LED2.turnOFF();
     return;
   }
+  else{
+    LED2.blink(250, 750);  // Blink green LED to indicate ESP-NOW is paired
+    LED1.turnOFF();
+  }
   Serial.println("Done");
-  
+
   Serial.println("ESP-NOW Receiver Initialized");
 }
 

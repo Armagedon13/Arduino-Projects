@@ -31,7 +31,7 @@ Transmisor
 /*
 led rojo: error
 led verde: estado espnow
-led amarillo: comunicacion
+led amarillo: datos
 */
 
 #define redLedPin 19
@@ -178,8 +178,6 @@ typedef struct struct_heartbeat {
   uint32_t timestamp;
 } struct_heartbeat;
 
-struct_heartbeat heartbeat;
-
 // Function to send heartbeat
 void sendHeartbeat() {
   if (esp_now_is_peer_exist(broadcastAddress) == false) {
@@ -199,6 +197,8 @@ void sendHeartbeat() {
   } else {
     Serial.print("Error sending heartbeat to Receiver: ");
     Serial.println(esp_err_to_name(result));
+    LED1.blink(500, 500);
+    LED2.turnOFF();
   }
 }
 
@@ -254,8 +254,10 @@ unsigned int localUdpPort = 1001;  // Local port number
 IPAddress local_ip(192, 168, 0, 140);
 IPAddress gateway(192, 168, 0, 1);
 IPAddress subnet(255, 255, 255, 0);
-IPAddress dns1(8, 8, 8, 8);
-IPAddress dns2 = (uint32_t)0x00000000;
+
+IPAddress dns1(8, 8, 8, 8);             //optional
+IPAddress dns2 = (uint32_t)0x00000000;  //optional
+
 
 // Setup -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void setup() {
@@ -270,15 +272,9 @@ void setup() {
 
   SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
   ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
-  //ETH.config(local_ip);  // Static IP, leave without this line to get IP via DHCP
-  while (!((uint32_t)ETH.localIP()))  // Waiting for IP
-  {
-  }
-  Serial.println("Connected");
-  Serial.print("IP Address:");
-  Serial.println(ETH.localIP());
-
+  ETH.config(local_ip, gateway, subnet);  // Static IP, leave without this line to get IP via DHCP
   Udp.begin(localUdpPort);  // Enable UDP listening to receive data
+  delay(1000);
 
   checkSwitch();
   // Initialize based on initial switch state
@@ -286,6 +282,7 @@ void setup() {
     startProgrammingMode();
   } else {
     initEspNow();
+    
   }
 }
 
@@ -318,6 +315,19 @@ void loop() {
       if (len > 0) {
         payload.data[len] = '\0';
       }
+      // ADD IT LATER
+      // char incomingData[250];
+      // int len = Udp.read(incomingData, 250);
+      // if (len > 0) {
+      //   incomingData[len] = '\0';
+      // }
+      // Serial.print("Received from weight scaler: ");
+      // Serial.println(incomingData);
+
+      // Send the data over ESP-NOW
+      // struct_message payload;
+      // strncpy(payload.data, incomingData, sizeof(payload.data) - 1);
+      // payload.data[sizeof(payload.data) - 1] = '\0';
 
       Serial.println();
       Serial.print("Received: ");

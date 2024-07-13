@@ -246,7 +246,37 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
     
     // Send heartbeat response
     sendHeartbeat();
-    //recepcion de datos no funciona la ip fija del transmisor funciona prende led amarillo pero nolo recibe el receptor
+  } else if (len == sizeof(struct_message)) {
+    memcpy(&incomingMessage, incomingData, sizeof(incomingMessage));
+    Serial.print("Bytes received: ");
+    Serial.println(len);
+    Serial.print("Message: ");
+    Serial.println(incomingMessage.data);
+
+    // Send data via Ethernet UDP
+    if (eth_connected && (uint32_t)ETH.localIP()) {
+      Udp.beginPacket(udpServerIP, replyPort);
+      Udp.write((const uint8_t*)incomingMessage.data, strlen(incomingMessage.data));
+      if (Udp.endPacket()) {
+        Serial.println("UDP packet sent successfully");
+        LED3.toggle();  // Indicate successful transmission
+      } else {
+        Serial.println("Failed to send UDP packet");
+        LED1.blink(100, 500);  // Indicate transmission failure
+      }
+      Serial.print("Sent to IP: ");
+      Serial.print(udpServerIP);
+      Serial.print(", port ");
+      Serial.println(replyPort);
+    } else {
+      Serial.println("Ethernet not connected or no IP. Cannot send UDP.");
+      LED1.blink(100, 500);  // Indicate Ethernet connection issue
+    }
+  } else {
+    Serial.println("Received unknown data type");
+  }
+}
+    //recepcion de datos no funciona la ip fija del transmisor funciona prende led amarillo pero no lo recibe el receptor
     //mirar la funcion de envio de datos del transmisor para dejar funcionando
     //el dhcp del transmisor no funciona con el modulo de balanza
     //intentar dejar una ip fija a la balanza , no termina de funcionar
@@ -259,29 +289,6 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
       pc con ip fija se conecta con el modulo transmisor.
       
     */
-  } else if (len == sizeof(struct_message)) {
-    memcpy(&incomingMessage, incomingData, sizeof(incomingMessage));
-    Serial.print("Bytes received: ");
-    Serial.println(len);
-    Serial.print("Message: ");
-    Serial.println(incomingMessage.data);
-
-    // Send data via Ethernet UDP
-    if (eth_connected) {
-      Udp.beginPacket(udpServerIP, replyPort);
-      Udp.write((const uint8_t*)incomingMessage.data, strlen(incomingMessage.data));
-      if (Udp.endPacket()) {
-        Serial.println("UDP packet sent successfully");
-      } else {
-        Serial.println("Failed to send UDP packet");
-      }
-      Serial.print("Sent to IP: ");
-      Serial.print(udpServerIP);
-      Serial.print(", port ");
-      Serial.println(replyPort);
-    }
-  }
-}
 
 // OTA----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const char *ssid = "Receptor PGR-MODE";

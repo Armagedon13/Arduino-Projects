@@ -273,7 +273,7 @@ void setup() {
   SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
   ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
   ETH.config(local_ip, gateway, subnet,dns1);  // Static IP, leave without this line to get IP via DHCP
-  Udp.begin(localUdpPort);  // Enable UDP listening to receive data
+  Udp.begin(local_ip, localUdpPort);  // Enable UDP listening to receive data
   delay(1000);
 
   checkSwitch();

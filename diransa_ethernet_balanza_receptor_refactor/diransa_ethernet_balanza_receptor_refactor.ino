@@ -246,6 +246,19 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
     
     // Send heartbeat response
     sendHeartbeat();
+    //recepcion de datos no funciona la ip fija del transmisor funciona prende led amarillo pero nolo recibe el receptor
+    //mirar la funcion de envio de datos del transmisor para dejar funcionando
+    //el dhcp del transmisor no funciona con el modulo de balanza
+    //intentar dejar una ip fija a la balanza , no termina de funcionar
+    // para enviar datos de la balanza
+    /*
+      primero apretar la tecla "1", despues agregar un numero de lote y apretar enter, agregar peso, poner el tara y seleccionar enviar que es 
+      un boton que + y una camara.
+
+      otro problema es el dns, agregar uno fijo con valor 8.8.8.8
+      pc con ip fija se conecta con el modulo transmisor.
+      
+    */
   } else if (len == sizeof(struct_message)) {
     memcpy(&incomingMessage, incomingData, sizeof(incomingMessage));
     Serial.print("Bytes received: ");
@@ -293,6 +306,7 @@ void setup() {
   SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
   ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
   //ETH.config(local_ip);  // Static IP, leave without this line to get IP via DHCP
+  delay(1000);
 
   //Udp.begin(localUdpPort);  // Enable UDP listening to receive data
 

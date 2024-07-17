@@ -259,7 +259,8 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
       // Send complete CSV via Ethernet UDP
       if (eth_connected && (uint32_t)ETH.localIP()) {
         Udp.beginPacket(udpServerIP, replyPort);
-        Udp.write(completeCSV.c_str());
+        Udp.write((const uint8_t*)receivedMessage.csv_data, receivedMessage.data_length);
+        Udp.endPacket();
         if (Udp.endPacket()) {
           Serial.println("Complete CSV data sent via UDP successfully");
           LED3.blinkNumberOfTimes(50, 50, 1);

@@ -160,51 +160,39 @@ NetworkUDP udpETH;                       // create UDP object
 // Dirección IP y puerto del servidor UDP
 IPAddress udpServerIP(192, 168, 0, 162);   // Cambia esta dirección IP a la del servidor UDP
 unsigned int replyPort = 1001;             // port to send response to
+unsigned int localUdpPort = 1000; 
 
 // WIFI UDP ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const char *ssid_TR = "Receptor-Balanza";
 const char *password_TR = "lalaland";
 
-// IP address to send UDP data to:
-IPAddress local_IP_TR(192, 168, 1, 100);
-IPAddress gateway_TR(192, 168, 1, 1);
+// IP address :
+IPAddress local_IP_TR(192, 168, 0, 100);
+IPAddress gateway_TR(192, 168, 0, 1);
 IPAddress subnet_TR(255, 255, 255, 0); 
 IPAddress primaryDNS_TR(8, 8, 8, 8); //optional 
 IPAddress secondaryDNS_TR(8, 8, 4, 4); //optional 
 
-IPAddress remoteIp(192, 168, 1, 101); // Dirección IP del Receptor
+IPAddress remoteIp(192, 168, 0, 101); // Dirección IP del Receptor
 
 unsigned int localWIFIPort = 8000;
 unsigned int receptorWIFIPort = 8001;
+char packetBuffer[5000];
 
 WiFiUDP udpWIFI;
 
 // WIFI Hearthbeat--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#define CONNECTION_TIMEOUT 10000
-unsigned long lastHeartbeatReceived = 0;
-
-void checkConnectionStatus() {
-  if (millis() - lastHeartbeatReceived > CONNECTION_TIMEOUT) {
-    LED1.turnOFF();  // Turn off activity LED if no heartbeat
-    LED2.blink(200, 700);
-  } else {
-    LED1.blink(200, 700);  // Keep activity LED on if receiving heartbeats
-    LED2.turnOFF();
-  }
+// a station disconnected from ESP32 soft-AP
+void WiFiAP_StaDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
+  LED1.blink(200, 500);
+  LED2.turnOFF();
 }
 
-/*
-  recepcion de datos no funciona la ip fija del transmisor funciona prende led amarillo pero no lo recibe el receptor
-  mirar la funcion de envio de datos del transmisor para dejar funcionando
-  el dhcp del transmisor no funciona con el modulo de balanza
-  intentar dejar una ip fija a la balanza , no termina de funcionar
-  para enviar datos de la balanza
-  primero apretar la tecla "1", despues agregar un numero de lote y apretar enter, agregar peso, poner el tara y seleccionar enviar que es 
-  un boton que + y una camara.
-
-  otro problema es el dns, agregar uno fijo con valor 8.8.8.8
-  pc con ip fija se conecta con el modulo transmisor.
-*/
+// a station connected to ESP32 soft-AP
+void WiFiAP_StaConnected(WiFiEvent_t event, WiFiEventInfo_t info){
+  LED2.blink(100, 700);
+  LED1.turnOFF();
+}
 
 // OTA----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const char *ssid = "Receptor PGR-MODE";
@@ -229,7 +217,9 @@ void setup() {
   SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
   ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
   //ETH.config(local_ip);  // Static IP, leave without this line to get IP via DHCP
-  delay(1000);
+  WiFi.onEvent(WiFiAP_StaConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_AP_STACONNECTED);
+  WiFi.onEvent(WiFiAP_StaDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_AP_STADISCONNECTED);
+  delay(2000);
 
   //Udp.begin(localUdpPort);  // Enable UDP listening to receive data
 
@@ -251,30 +241,82 @@ void loop() {
 
   if (programmingMode) {
     ArduinoOTA.handle();
-  } else {
+  } 
+  else {
+    // int packetSize = udpWIFI.parsePacket();
+    // if (packetSize) {
+    //   Serial.printf("Received %d bytes from %s, port %d\n", packetSize, udpWIFI.remoteIP().toString().c_str(), udpWIFI.remotePort());
+    //   int len = udpWIFI.read(packetBuffer, sizeof(packetBuffer));
+    //   if (len > 0){
+    //     packetBuffer[len] = 0;
+    //   }
+    //   Serial.printf("UDP packet contents: %s\n", packetBuffer);
+
+    //   // Forward the packet over Ethernet
+    //   udpETH.beginPacket(udpServerIP, replyPort);
+    //   udpETH.write((uint8_t*)packetBuffer, len);
+    //   if (udpETH.endPacket()) {
+    //     Serial.println("Packet forwarded successfully over Ethernet");
+    //   } else {
+    //     Serial.println("Failed to forward packet over Ethernet");
+    //   }
+    // }
+
+  int packetSize = udpWIFI.parsePacket();
+  if (packetSize) {
+    Serial.printf("Received %d bytes from %s, port %d\n", packetSize, udpWIFI.remoteIP().toString().c_str(), udpWIFI.remotePort());
+    int len = udpWIFI.read(packetBuffer, sizeof(packetBuffer));
+    if (len > 0) {
+      packetBuffer[len] = 0;  // Null-terminate the string
+    }
+    Serial.printf("UDP packet contents: %s\n", packetBuffer);
+
+    // Print Ethernet status and IP
+    Serial.printf("Ethernet Status: %s\n", ETH.linkUp() ? "Connected" : "Disconnected");
+    Serial.printf("Ethernet IP: %s\n", ETH.localIP().toString().c_str());
+
+    // Forward the packet over Ethernet
+    udpETH.beginPacket(udpServerIP, replyPort);
+    udpETH.write((uint8_t*)packetBuffer, len);
+    if (udpETH.endPacket()) {
+      Serial.printf("Packet forwarded to %s:%d\n", udpServerIP.toString().c_str(), replyPort);
+    } else {
+      Serial.println("Failed to forward packet over Ethernet");
+    }
+  }
+
+
+
+    /*
     int packetSize = udpWIFI.parsePacket();
     if (packetSize) {
-      char* packetBuffer = new char[packetSize + 1];
-      udpWIFI.read(packetBuffer, packetSize);
-      packetBuffer[packetSize] = '\0';
+      Serial.print(" Received packet from : "); Serial.println(udpWIFI.remoteIP());
+      Serial.print(" Size : "); Serial.println(packetSize);
+      int len = udpWIFI.read(packetBuffer, packetSize);
+      if (len > 0) packetBuffer[len - 1] = 0;
+      Serial.printf("Data : %s\n", packetBuffer);
+      udpETH.beginPacket(udpServerIP, replyPort);
+      udpETH.write((uint8_t*)packetBuffer, packetSize);
+      udpETH.endPacket();
+      LED3.blinkNumberOfTimes(50, 50, 1);  // Blink activity LED
+      udpWIFI.endPacket();
 
-      if (strcmp(packetBuffer, "HEARTBEAT") == 0) {
-        lastHeartbeatReceived = millis();
-      } else {
-        // Forward data to Ethernet
-        if (eth_connected) {
-          udpETH.beginPacket(udpServerIP, replyPort);
-          udpETH.write((uint8_t*)packetBuffer, packetSize);
-          udpETH.endPacket();
-          LED3.blink(100, 100);  // Blink activity LED
-        }
-      }
-
-      delete[] packetBuffer;
-    }
-
-    checkConnectionStatus();
+      // Forward data to Ethernet
+      // if (eth_connected) {
+      //   if (udpETH.endPacket()) {
+      //   Serial.println("UDP packet sent successfully");
+      //   LED3.blinkNumberOfTimes(50, 50, 1);
+        
+      // } else {
+      //   Serial.println("Failed to send UDP packet");
+      // }
+      // }
+      // if (udpWIFI.endPacket()){
+      //   LED3.blinkNumberOfTimes(50, 50, 1);  // Blink activity LED
+      // }
+    }*/
   }
+
   if (eth_connected && !((uint32_t)ETH.localIP())){
     while(!((uint32_t)ETH.localIP())) // Waiting for IP
     {
@@ -285,6 +327,7 @@ void loop() {
     Serial.println(ETH.localIP());
   }
 }
+
 void checkSwitch() {
   static unsigned long lastDebounceTime = 0;
   static int lastSwitchState = LOW;
@@ -312,11 +355,13 @@ void checkSwitch() {
 }
 
 void startProgrammingMode() {
+  WiFi.softAPdisconnect(true);
+  WiFi.mode(WIFI_OFF);
   LED1.turnOFF();
   LED2.turnOFF();
   LED3.turnOFF();
-  delay(10);
-  WiFi.mode(WIFI_AP_STA);
+  delay(1000);
+  WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(local_ip_AP, gateway_AP, subnet_AP);
   WiFi.softAP(ssid, password);
   setupOTA();
@@ -343,12 +388,12 @@ void stopProgrammingMode() {
 
 void initAPmode() {
   // Creación del Punto de Acceso.
-  WiFi.softAP(ssid_TR, password_TR);
-  WiFi.config(local_IP_TR, gateway_TR, subnet_TR);
+  WiFi.softAP(ssid_TR, password_TR, 1);
+  WiFi.softAPConfig(local_IP_TR, gateway_TR, subnet_TR);
   udpWIFI.begin(localWIFIPort);
+  udpETH.begin(localUdpPort);
   delay(1000);
   Serial.println("start normal mode");
-  
 }
 
 void setupOTA() {

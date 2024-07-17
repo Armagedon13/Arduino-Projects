@@ -153,15 +153,15 @@ const char *password_TR = "lalaland";
 // IP address to send UDP data to:
 // either use the ip address of the server or 
 // a network broadcast address
-IPAddress local_IP_TR(192, 168, 1, 101);
-IPAddress gateway_TR(192, 168, 1, 1);
+IPAddress local_IP_TR(192, 168, 0, 101);
+IPAddress gateway_TR(192, 168, 0, 1);
 IPAddress subnet_TR(255, 255, 255, 0); 
 IPAddress primaryDNS_TR(8, 8, 8, 8); //optional 
 IPAddress secondaryDNS_TR(8, 8, 4, 4); //optional 
 
-IPAddress remoteIp(192, 168, 1, 100); // Dirección IP del Receptor
+IPAddress remoteIp(192, 168, 0, 100); // Dirección IP del Receptor
 
-char packetBuffer[255];
+char packetBuffer[5000];
 unsigned int localWIFIPort = 8001;
 unsigned int receptorWIFIPort = 8000;
 
@@ -173,28 +173,22 @@ WiFiUDP udpWIFI;
 
 
 // WIFI Hearthbeat----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-#define HEARTBEAT_INTERVAL 5000
-unsigned long lastHeartbeatSent = 0;
+void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
+  LED1.blink(200, 500);
+  LED2.turnOFF();
+  Serial.println("Disconnected from WiFi access point");
+  Serial.print("WiFi lost connection. Reason: ");
+  Serial.println(info.wifi_sta_disconnected.reason);
+  WiFi.disconnect();
+  Serial.println("Trying to Reconnect");
 
-void sendHeartbeat() {
-  udpWIFI.beginPacket(remoteIp, receptorWIFIPort);
-  udpWIFI.write((uint8_t*)"HEARTBEAT", 9);
-  udpWIFI.endPacket();
+  WiFi.begin(ssid_TR, password_TR);
 }
 
-/*recepcion de datos no funciona la ip fija del transmisor funciona prende led amarillo pero no lo recibe el receptor
-  mirar la funcion de envio de datos del transmisor para dejar funcionando
-  el dhcp del transmisor no funciona con el modulo de balanza
-  intentar dejar una ip fija a la balanza , no termina de funcionar
-  para enviar datos de la balanza
-
-  primero apretar la tecla "1", despues agregar un numero de lote y apretar enter, agregar peso, poner el tara y seleccionar enviar que es 
-  un boton que + y una camara.
-
-  otro problema es el dns, agregar uno fijo con valor 8.8.8.8
-  pc con ip fija se conecta con el modulo transmisor.
-  
-*/
+void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
+  LED2.blink(100, 700);
+  LED1.turnOFF();
+}
 
 // OTA----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const char *ssid = "Receptor PGR-MODE";
@@ -231,6 +225,8 @@ void setup() {
   ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
   ETH.config(local_ip, gateway, subnet,dns1);  // Static IP, leave without this line to get IP via DHCP
   udpETH.begin(local_ip, localETHPort);  // Enable UDP listening to receive data
+  WiFi.onEvent(WiFiStationConnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_CONNECTED);
+  WiFi.onEvent(WiFiStationDisconnected, WiFiEvent_t::ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
   delay(1000);
 
   checkSwitch();
@@ -240,6 +236,7 @@ void setup() {
   } else {
     initAPmode();
   }
+  
 }
 
 // Loop -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -248,35 +245,40 @@ void loop() {
   LED2.loop();
   LED3.loop();
   checkSwitch();
-  unsigned long currentMillis = millis();
 
   if (programmingMode) {
     ArduinoOTA.handle();
-  }else {
+  }
+  else {
     if (eth_connected) {
       int packetSize = udpETH.parsePacket();
       if (packetSize) {
-        char* packetBuffer = new char[packetSize + 1];
-        udpETH.read(packetBuffer, packetSize);
-        packetBuffer[packetSize] = '\0';
+        Serial.print(" Received packet from : "); Serial.println(udpETH.remoteIP());
+        Serial.print(" Size : "); Serial.println(packetSize);
+        int len = udpETH.read(packetBuffer, packetSize);
+        if (len > 0){
+          packetBuffer[len] = 0;
+        }
+        Serial.printf("Data : %s\n", packetBuffer);
+        udpETH.printf("UDP packet was received OK\r\n");
 
         udpWIFI.beginPacket(remoteIp, receptorWIFIPort);
         udpWIFI.write((uint8_t*)packetBuffer, packetSize);
         udpWIFI.endPacket();
-
-        LED3.blink(100, 100);  // Blink activity LED
-        delete[] packetBuffer;
-      }
-    }
-
-    // Send heartbeat
-    unsigned long currentMillis = millis();
-    if (currentMillis - lastHeartbeatSent >= HEARTBEAT_INTERVAL) {
-      sendHeartbeat();
-      lastHeartbeatSent = currentMillis;
+        
+        if (udpETH.endPacket()){
+          LED3.blinkNumberOfTimes(50, 50, 1);  // Blink activity LED
+        }
+        if (udpWIFI.endPacket()){
+          Serial.println("data sended to Reciver");
+          udpETH.endPacket();
+        }
+        
+      }   
     }
   }
 }
+
 void checkSwitch() {
   static unsigned long lastDebounceTime = 0;
   static int lastSwitchState = LOW;
@@ -336,17 +338,18 @@ void stopProgrammingMode() {
 void initAPmode() {
   // Connect to Wifi network.
   WiFi.mode(WIFI_STA);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    LED1.blink(100, 500);
-    LED2.turnOFF();
-  }
-  Serial.println(" Connected.");
-  if (!WiFi.config(local_IP_TR, gateway_TR, subnet_TR, primaryDNS_TR, secondaryDNS_TR)) {
+  WiFi.begin(ssid_TR, password_TR);
+  if (!WiFi.config(local_IP_TR, gateway_TR, subnet_TR)) {
     Serial.println("configuration failed");
   }
   udpWIFI.begin(localWIFIPort);
+  delay(1000);
+  while (WiFi.status() != WL_CONNECTED)
+  {
+
+  }
+  Serial.println(" Connected.");
+  Serial.println(WiFi.localIP());
 }
 
 void setupOTA() {

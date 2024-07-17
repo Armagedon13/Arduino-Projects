@@ -309,35 +309,63 @@ void loop() {
   }
 
   // Ethernet data udp handle
+  // if (eth_connected) {
+  //   int packetSize = Udp.parsePacket();
+  //   if (packetSize) {
+  //     char incomingData[UDP_TX_PACKET_MAX_SIZE];
+  //     int len = Udp.read(incomingData, UDP_TX_PACKET_MAX_SIZE - 1);
+  //     if (len > 0) {
+  //       incomingData[len] = '\0';
+  //       Serial.print("Received CSV from weight scale: ");
+  //       Serial.println(incomingData);
+
+  //       // Split data into chunks if necessary
+  //       int chunkSize = 240;
+  //       for (int i = 0; i < len; i += chunkSize) {
+  //         struct_message payload;
+  //         int copySize = min(chunkSize, len - i);
+  //         memcpy(payload.csv_data, incomingData + i, copySize);
+  //         payload.data_length = copySize;
+  //         payload.is_last_chunk = (i + chunkSize >= len);
+
+  //         esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&payload, sizeof(payload));
+  //         if (result == ESP_OK) {
+  //           Serial.println("CSV chunk sent via ESP-NOW successfully");
+  //           LED3.blinkNumberOfTimes(50, 50, 1);
+  //         } else {
+  //           Serial.println("Error sending CSV chunk via ESP-NOW");
+  //         }
+  //       }
+  //     }
+  //   }
+  // }
   if (eth_connected) {
     int packetSize = Udp.parsePacket();
     if (packetSize) {
       char incomingData[MAX_CSV_LENGTH];
       int len = Udp.read(incomingData, MAX_CSV_LENGTH - 1);
       if (len > 0) {
-        incomingData[len] = '\0';
+        incomingData[len] = '\0';  // Null-terminate the string
         Serial.print("Received CSV from weight scale: ");
         Serial.println(incomingData);
 
-        // Split data into chunks if necessary
-        int chunkSize = 240;
-        for (int i = 0; i < len; i += chunkSize) {
-          struct_message payload;
-          int copySize = min(chunkSize, len - i);
-          memcpy(payload.csv_data, incomingData + i, copySize);
-          payload.data_length = copySize;
-          payload.is_last_chunk = (i + chunkSize >= len);
+        struct_message payload;
+        strncpy(payload.csv_data, incomingData, MAX_CSV_LENGTH - 1);
+        payload.csv_data[MAX_CSV_LENGTH - 1] = '\0';  // Ensure null-termination
+        payload.data_length = strlen(payload.csv_data);
 
-          esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&payload, sizeof(payload));
-          if (result == ESP_OK) {
-            Serial.println("CSV chunk sent via ESP-NOW successfully");
-          } else {
-            Serial.println("Error sending CSV chunk via ESP-NOW");
-          }
+        esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&payload, sizeof(payload));
+        if (result == ESP_OK) {
+          Serial.println("CSV data sent via ESP-NOW successfully");
+          LED3.blinkNumberOfTimes(50, 50, 1);
+        } else {
+          Serial.println("Error sending CSV data via ESP-NOW");
+          //LED1.blink(100, 500);
         }
       }
     }
   }
+
 }
 
 void checkSwitch() {

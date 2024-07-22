@@ -124,7 +124,7 @@ void onEvent(arduino_event_id_t event) {
       Serial.println("ETH Started");
       // The hostname must be set after the interface is started, but needs
       // to be set before DHCP, so set it from the event handler thread.
-      ETH.setHostname("esp32-ethernet");
+      ETH.setHostname("esp32-REC_1-ethernet");
       break;
     case ARDUINO_EVENT_ETH_CONNECTED: Serial.println("ETH Connected"); break;
     case ARDUINO_EVENT_ETH_GOT_IP:
@@ -254,12 +254,12 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
     Serial.println(incomingMessage.data);
 
     // Send data via Ethernet UDP
-    if (eth_connected && (uint32_t)ETH.localIP()) {
+    if (eth_connected) {
       Udp.beginPacket(udpServerIP, replyPort);
       Udp.write((const uint8_t*)incomingMessage.data, strlen(incomingMessage.data));
       if (Udp.endPacket()) {
         Serial.println("UDP packet sent successfully");
-        LED3.toggle();  // Indicate successful transmission
+        LED3.blinkNumberOfTimes(50, 50, 1);  // Blink activity LED
       } else {
         Serial.println("Failed to send UDP packet");
         LED1.blink(100, 500);  // Indicate transmission failure
@@ -276,19 +276,6 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
     Serial.println("Received unknown data type");
   }
 }
-    //recepcion de datos no funciona la ip fija del transmisor funciona prende led amarillo pero no lo recibe el receptor
-    //mirar la funcion de envio de datos del transmisor para dejar funcionando
-    //el dhcp del transmisor no funciona con el modulo de balanza
-    //intentar dejar una ip fija a la balanza , no termina de funcionar
-    // para enviar datos de la balanza
-    /*
-      primero apretar la tecla "1", despues agregar un numero de lote y apretar enter, agregar peso, poner el tara y seleccionar enviar que es 
-      un boton que + y una camara.
-
-      otro problema es el dns, agregar uno fijo con valor 8.8.8.8
-      pc con ip fija se conecta con el modulo transmisor.
-      
-    */
 
 // OTA----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const char *ssid = "Receptor PGR-MODE";
@@ -313,7 +300,7 @@ void setup() {
   SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
   ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
   //ETH.config(local_ip);  // Static IP, leave without this line to get IP via DHCP
-  delay(1000);
+  delay(5000);
 
   //Udp.begin(localUdpPort);  // Enable UDP listening to receive data
 

@@ -150,16 +150,14 @@ void onEvent(arduino_event_id_t event) {
 // WIFI UDP-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const char *ssid_TR = "Receptor-Balanza";
 const char *password_TR = "lalaland";
-// IP address to send UDP data to:
-// either use the ip address of the server or 
 // a network broadcast address
-IPAddress local_IP_TR(192, 168, 0, 101);
-IPAddress gateway_TR(192, 168, 0, 1);
+IPAddress local_IP_TR(192, 168, 1, 111);
+IPAddress gateway_TR(192, 168, 1, 1);
 IPAddress subnet_TR(255, 255, 255, 0); 
 IPAddress primaryDNS_TR(8, 8, 8, 8); //optional 
 IPAddress secondaryDNS_TR(8, 8, 4, 4); //optional 
 
-IPAddress remoteIp(192, 168, 0, 100); // Dirección IP del Receptor
+IPAddress remoteIp(192, 168, 1, 110); // Dirección IP del Receptor
 
 char packetBuffer[5000];
 unsigned int localWIFIPort = 8001;
@@ -172,7 +170,9 @@ boolean connected = false;
 WiFiUDP udpWIFI;
 
 
-// WIFI Hearthbeat----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// WIFI KeepAlive --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#define TRANSMITTER
+
 void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
   LED1.blink(200, 500);
   LED2.turnOFF();
@@ -188,6 +188,38 @@ void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
   LED2.blink(100, 700);
   LED1.turnOFF();
+}
+
+unsigned long previousKeepAliveMillis = 0;
+const long keepAliveInterval = 5000;  // Send keep-alive every 5 seconds
+const long keepAliveTimeout = 15000;  // Consider disconnected after 15 seconds of no keep-alive
+
+void handleKeepAlive() {
+  unsigned long currentMillis = millis();
+  
+  if (currentMillis - previousKeepAliveMillis >= keepAliveInterval) {
+    previousKeepAliveMillis = currentMillis;
+    
+    // Print connection status
+    Serial.println("--- Connection Status ---");
+    Serial.print("WiFi: ");
+    Serial.println(WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
+    Serial.print("Ethernet: ");
+    Serial.println(eth_connected ? "Connected" : "Disconnected");
+    
+    #ifdef TRANSMITTER
+      // Send keep-alive message to Receiver
+      const char* keepAliveMsg = "KEEP_ALIVE";
+      udpWIFI.beginPacket(remoteIp, receptorWIFIPort);
+      udpWIFI.write((const uint8_t*)keepAliveMsg, strlen(keepAliveMsg));
+      udpWIFI.endPacket();
+    #endif
+    
+    #ifdef RECEIVER
+      Serial.print("Transmitter: ");
+      Serial.println((currentMillis - lastKeepAliveReceived) < keepAliveTimeout ? "Connected" : "Disconnected");
+    #endif
+  }
 }
 
 // OTA----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -245,6 +277,7 @@ void loop() {
   LED2.loop();
   LED3.loop();
   checkSwitch();
+  handleKeepAlive();
 
   if (programmingMode) {
     ArduinoOTA.handle();

@@ -160,20 +160,20 @@ NetworkUDP udpETH;                       // create UDP object
 // Dirección IP y puerto del servidor UDP
 IPAddress udpServerIP(192, 168, 0, 162);   // Cambia esta dirección IP a la del servidor UDP
 unsigned int replyPort = 1001;             // port to send response to
-unsigned int localUdpPort = 1000; 
+unsigned int localUdpPort = 1000;
 
 // WIFI UDP ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 const char *ssid_TR = "Receptor-Balanza";
 const char *password_TR = "lalaland";
 
 // IP address :
-IPAddress local_IP_TR(192, 168, 0, 100);
-IPAddress gateway_TR(192, 168, 0, 1);
+IPAddress local_IP_TR(192, 168, 1, 110);
+IPAddress gateway_TR(192, 168, 1, 1);
 IPAddress subnet_TR(255, 255, 255, 0); 
 IPAddress primaryDNS_TR(8, 8, 8, 8); //optional 
 IPAddress secondaryDNS_TR(8, 8, 4, 4); //optional 
 
-IPAddress remoteIp(192, 168, 0, 101); // Dirección IP del Receptor
+IPAddress remoteIp(192, 168, 1, 111); // Dirección IP del Receptor
 
 unsigned int localWIFIPort = 8000;
 unsigned int receptorWIFIPort = 8001;
@@ -181,7 +181,9 @@ char packetBuffer[5000];
 
 WiFiUDP udpWIFI;
 
-// WIFI Hearthbeat--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+// WIFI KeepAlive ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#define RECEIVER
+
 // a station disconnected from ESP32 soft-AP
 void WiFiAP_StaDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
   LED1.blink(200, 500);
@@ -192,6 +194,39 @@ void WiFiAP_StaDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
 void WiFiAP_StaConnected(WiFiEvent_t event, WiFiEventInfo_t info){
   LED2.blink(100, 700);
   LED1.turnOFF();
+}
+
+unsigned long previousKeepAliveMillis = 0;
+const long keepAliveInterval = 5000;  // Send keep-alive every 5 seconds
+const long keepAliveTimeout = 15000;  // Consider disconnected after 15 seconds of no keep-alive
+unsigned long lastKeepAliveReceived = 0;
+
+void handleKeepAlive() {
+  unsigned long currentMillis = millis();
+  
+  if (currentMillis - previousKeepAliveMillis >= keepAliveInterval) {
+    previousKeepAliveMillis = currentMillis;
+    
+    // Print connection status
+    Serial.println("--- Connection Status ---");
+    Serial.print("WiFi: ");
+    Serial.println(WiFi.status() == WL_CONNECTED ? "Connected" : "Disconnected");
+    Serial.print("Ethernet: ");
+    Serial.println(eth_connected ? "Connected" : "Disconnected");
+    
+    #ifdef TRANSMITTER
+      // Send keep-alive message to Receiver
+      const char* keepAliveMsg = "KEEP_ALIVE";
+      udpWIFI.beginPacket(remoteIp, receptorWIFIPort);
+      udpWIFI.write((const uint8_t*)keepAliveMsg, strlen(keepAliveMsg));
+      udpWIFI.endPacket();
+    #endif
+    
+    #ifdef RECEIVER
+      Serial.print("Transmitter: ");
+      Serial.println((currentMillis - lastKeepAliveReceived) < keepAliveTimeout ? "Connected" : "Disconnected");
+    #endif
+  }
 }
 
 // OTA----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -238,6 +273,7 @@ void loop() {
   LED2.loop();
   LED3.loop();
   checkSwitch();
+  handleKeepAlive();
 
   if (programmingMode) {
     ArduinoOTA.handle();
@@ -264,24 +300,30 @@ void loop() {
 
   int packetSize = udpWIFI.parsePacket();
   if (packetSize) {
-    Serial.printf("Received %d bytes from %s, port %d\n", packetSize, udpWIFI.remoteIP().toString().c_str(), udpWIFI.remotePort());
-    int len = udpWIFI.read(packetBuffer, sizeof(packetBuffer));
-    if (len > 0) {
-      packetBuffer[len] = 0;  // Null-terminate the string
-    }
-    Serial.printf("UDP packet contents: %s\n", packetBuffer);
+    // Keepalive administration
+    if (strcmp(packetBuffer, "KEEP_ALIVE") == 0) {
+        lastKeepAliveReceived = millis();
+    } 
+    else {
+      Serial.printf("Received %d bytes from %s, port %d\n", packetSize, udpWIFI.remoteIP().toString().c_str(), udpWIFI.remotePort());
+      int len = udpWIFI.read(packetBuffer, sizeof(packetBuffer));
+      if (len > 0) {
+        packetBuffer[len] = 0;  // Null-terminate the string
+      }
+      Serial.printf("UDP packet contents: %s\n", packetBuffer);
 
-    // Print Ethernet status and IP
-    Serial.printf("Ethernet Status: %s\n", ETH.linkUp() ? "Connected" : "Disconnected");
-    Serial.printf("Ethernet IP: %s\n", ETH.localIP().toString().c_str());
+      // Print Ethernet status and IP
+      Serial.printf("Ethernet Status: %s\n", ETH.linkUp() ? "Connected" : "Disconnected");
+      Serial.printf("Ethernet IP: %s\n", ETH.localIP().toString().c_str());
 
-    // Forward the packet over Ethernet
-    udpETH.beginPacket(udpServerIP, replyPort);
-    udpETH.write((uint8_t*)packetBuffer, len);
-    if (udpETH.endPacket()) {
-      Serial.printf("Packet forwarded to %s:%d\n", udpServerIP.toString().c_str(), replyPort);
-    } else {
-      Serial.println("Failed to forward packet over Ethernet");
+      // Forward the packet over Ethernet
+      udpETH.beginPacket(udpServerIP, replyPort);
+      udpETH.write((uint8_t*)packetBuffer, len);
+      if (udpETH.endPacket()) {
+        Serial.printf("Packet forwarded to %s:%d\n", udpServerIP.toString().c_str(), replyPort);
+      } else {
+        Serial.println("Failed to forward packet over Ethernet");
+      }
     }
   }
 

@@ -27,6 +27,8 @@ Transmisor
 
 #include <ezLED.h>  // ezLED library
 
+#include "dhcpserver/dhcpserver.h"
+
 // Definir pines para LEDs y switch
 /*
 led rojo: error
@@ -124,7 +126,7 @@ void onEvent(arduino_event_id_t event) {
       Serial.println("ETH Started");
       // The hostname must be set after the interface is started, but needs
       // to be set before DHCP, so set it from the event handler thread.
-      ETH.setHostname("esp32-ethernet");
+      ETH.setHostname("esp32-TRA_1-ethernet");
       break;
     case ARDUINO_EVENT_ETH_CONNECTED: Serial.println("ETH Connected"); break;
     case ARDUINO_EVENT_ETH_GOT_IP:
@@ -225,10 +227,6 @@ void checkConnectionStatus() {
 void onDataSent(const uint8_t *mac_addr, esp_now_send_status_t status) {
   Serial.print("\r\nEstado del último paquete enviado:\t");
   Serial.println(status == ESP_NOW_SEND_SUCCESS ? "Envío exitoso" : "Fallo en el envío");
-  if (status == ESP_NOW_SEND_SUCCESS) {
-    LED3.turnON();
-    LED3.turnOFF();
-  }
 }
 // callback when data is recived
 void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, int len) {
@@ -272,9 +270,9 @@ void setup() {
 
   SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
   ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
-  ETH.config(local_ip, gateway, subnet,dns1);  // Static IP, leave without this line to get IP via DHCP
+  ETH.config(local_ip, gateway, subnet, dns1);  // Static IP, leave without this line to get IP via DHCP
   Udp.begin(local_ip, localUdpPort);  // Enable UDP listening to receive data
-  delay(1000);
+  delay(5000);
 
   checkSwitch();
   // Initialize based on initial switch state
@@ -310,23 +308,15 @@ void loop() {
   if (eth_connected) {
     int packetSize = Udp.parsePacket();  // Get the current team header packet length
     if (packetSize) {                    // If data is available
-      // int len = Udp.read(payload.data, 250);
-      // if (len > 0) {
-      //   payload.data[len] = '\0';
-      // }
-      // ADD IT LATER
       char incomingData[250];
       int len = Udp.read(incomingData, 250);
       if (len > 0) {
         incomingData[len] = '\0';
       }
-      Serial.print("Received from weight scaler: ");
-      Serial.println(incomingData);
-
       //Send the data over ESP-NOW
       struct_message payload;
-      strncpy(payload.data, incomingData, sizeof(payload.data) - 1);
-      payload.data[sizeof(payload.data) - 1] = '\0';
+      strncpy(payload.data, incomingData, sizeof(payload.data));
+      payload.data[sizeof(payload.data) -1] = '\0';
 
       Serial.println();
       Serial.print("Received: ");
@@ -339,7 +329,7 @@ void loop() {
       esp_err_t result = esp_now_send(broadcastAddress, (uint8_t *)&payload, sizeof(payload));
       if (result == ESP_OK) {
         Serial.println("Envío exitoso");
-        LED3.toggle();
+        LED3.blinkNumberOfTimes(50, 50, 1);  // Blink activity LED
         LED1.turnOFF();
       } else {
         Serial.println("Error al enviar los datos");
@@ -348,6 +338,13 @@ void loop() {
       }
     }
   }
+  else{
+    SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
+    ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
+    ETH.config(local_ip, gateway, subnet, dns1);  // Static IP, leave without this line to get IP via DHCP
+    Udp.begin(local_ip, localUdpPort);  // Enable UDP listening to receive data
+  }
+
 }
 
 void checkSwitch() {

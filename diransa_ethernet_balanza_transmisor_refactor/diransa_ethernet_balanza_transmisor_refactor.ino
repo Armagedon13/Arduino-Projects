@@ -21,13 +21,11 @@ Transmisor
 
 #include <esp_now.h>
 #include <WiFi.h>
-#include <esp_wifi.h>  // only for esp_wifi_set_channel()
+#include <esp_wifi.h>
 
 #include <ArduinoOTA.h>
 
 #include <ezLED.h>  // ezLED library
-
-#include "dhcpserver/dhcpserver.h"
 
 // Definir pines para LEDs y switch
 /*
@@ -256,7 +254,6 @@ IPAddress subnet(255, 255, 255, 0);
 IPAddress dns1(8, 8, 8, 8);             //optional
 IPAddress dns2 = (uint32_t)0x00000000;  //optional
 
-
 // Setup -----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
@@ -337,12 +334,6 @@ void loop() {
         LED3.turnOFF();
       }
     }
-  }
-  else{
-    SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
-    ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
-    ETH.config(local_ip, gateway, subnet, dns1);  // Static IP, leave without this line to get IP via DHCP
-    Udp.begin(local_ip, localUdpPort);  // Enable UDP listening to receive data
   }
 
 }

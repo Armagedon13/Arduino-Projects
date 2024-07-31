@@ -25,6 +25,7 @@ Transmisor
 
 #include <ArduinoOTA.h>
 
+#include <esp_task_wdt.h> // Watchdog
 #include <ezLED.h>  // ezLED library
 
 // Definir pines para LEDs y switch
@@ -262,6 +263,9 @@ void setup() {
   LED3.turnOFF();
   pinMode(switchPin, INPUT_PULLUP);  // Configurar el pin del interruptor
 
+  // Wait to W5500 to init
+  delay(5000);
+
   // Ethernet INIT
   Network.onEvent(onEvent);
 
@@ -269,7 +273,7 @@ void setup() {
   ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
   ETH.config(local_ip, gateway, subnet, dns1);  // Static IP, leave without this line to get IP via DHCP
   Udp.begin(local_ip, localUdpPort);  // Enable UDP listening to receive data
-  delay(5000);
+  delay(2000);
 
   checkSwitch();
   // Initialize based on initial switch state
@@ -297,6 +301,9 @@ void loop() {
     if (currentMillis - lastHeartbeatSent >= HEARTBEAT_INTERVAL) {
     sendHeartbeat();
     lastHeartbeatSent = currentMillis;
+    
+    //watchdog
+    esp_task_wdt_reset();
   }
   checkConnectionStatus();
   }

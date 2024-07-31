@@ -260,9 +260,10 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
       if (Udp.endPacket()) {
         Serial.println("UDP packet sent successfully");
         LED3.blinkNumberOfTimes(50, 50, 1);  // Blink activity LED
+        LED1.turnOFF();
       } else {
         Serial.println("Failed to send UDP packet");
-        LED1.blink(100, 500);  // Indicate transmission failure
+        LED1.blink(50, 50);  // Indicate transmission failure
       }
       Serial.print("Sent to IP: ");
       Serial.print(udpServerIP);

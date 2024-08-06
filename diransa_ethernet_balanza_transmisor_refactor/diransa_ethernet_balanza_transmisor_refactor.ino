@@ -25,7 +25,9 @@ Transmisor
 
 #include <ArduinoOTA.h>
 
-#include <esp_task_wdt.h> // Watchdog
+#include "esp_system.h"
+#include "rom/ets_sys.h"
+
 #include <ezLED.h>  // ezLED library
 
 // Definir pines para LEDs y switch
@@ -44,6 +46,17 @@ ezLED LED2(greenLedPin);
 ezLED LED3(activityLedPin);
 
 #define switchPin 21  // Pin del interruptor
+
+const int wdtTimeout = 5000;  //time in ms to trigger the watchdog
+hw_timer_t *timer = NULL;
+
+void ARDUINO_ISR_ATTR resetModule() {
+  ETH.end();
+  SPI.end();
+  delay(1000);
+  ets_printf("reboot\n");
+  esp_restart();
+}
 
 bool programmingMode = false;
 
@@ -275,6 +288,10 @@ void setup() {
   Udp.begin(local_ip, localUdpPort);  // Enable UDP listening to receive data
   delay(2000);
 
+  timer = timerBegin(1000000);                     //timer 1Mhz resolution
+  timerAttachInterrupt(timer, &resetModule);       //attach callback
+  timerAlarm(timer, wdtTimeout * 1000, false, 0);  //set time in us
+
   checkSwitch();
   // Initialize based on initial switch state
   if (programmingMode) {
@@ -291,6 +308,8 @@ void loop() {
   LED2.loop();
   LED3.loop();
   checkSwitch();
+  timerWrite(timer, 0);  //reset timer (feed watchdog)
+  long loopTime = millis();
   unsigned long currentMillis = millis();
   // OTA handle
   if (programmingMode) {
@@ -301,9 +320,6 @@ void loop() {
     if (currentMillis - lastHeartbeatSent >= HEARTBEAT_INTERVAL) {
     sendHeartbeat();
     lastHeartbeatSent = currentMillis;
-    
-    //watchdog
-    esp_task_wdt_reset();
   }
   checkConnectionStatus();
   }
@@ -339,10 +355,16 @@ void loop() {
         Serial.println("Error al enviar los datos");
         LED1.blink(100, 500);
         LED3.turnOFF();
+        Udp.clear();
       }
     }
+    else{
+      Udp.clear();
+    }
   }
-
+  loopTime = millis() - loopTime;
+  // Serial.print("loop time is = ");
+  // Serial.println(loopTime);  //should be under 5000
 }
 
 void checkSwitch() {
@@ -403,8 +425,10 @@ void stopProgrammingMode() {
 
 void initEspNow() {
   WiFi.mode(WIFI_STA);
-  delay(1000);
+  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_LR);
   esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE);
+  delay(1000);
+  
   // This is the mac address of the Master in Station Mode
   Serial.print("STA MAC: ");
   Serial.println(WiFi.macAddress());

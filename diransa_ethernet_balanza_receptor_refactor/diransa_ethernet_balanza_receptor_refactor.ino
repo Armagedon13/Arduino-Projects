@@ -25,6 +25,9 @@ Receptor
 
 #include <ArduinoOTA.h>
 
+#include "esp_system.h"
+#include "rom/ets_sys.h"
+
 #include <ezLED.h> // ezLED library
 
 // Definir pines para LEDs y switch
@@ -43,6 +46,17 @@ ezLED LED2(greenLedPin);
 ezLED LED3(activityLedPin);
 
 #define switchPin 21  // Pin del interruptor
+
+const int wdtTimeout = 5000;  //time in ms to trigger the watchdog
+hw_timer_t *timer = NULL;
+
+void ARDUINO_ISR_ATTR resetModule() {
+  ETH.end();
+  SPI.end();
+  delay(1000);
+  ets_printf("reboot\n");
+  esp_restart();
+}
 
 bool programmingMode = false;
 
@@ -218,7 +232,6 @@ void sendHeartbeat() {
   }
 }
 
-
 void checkConnectionStatus() {
   unsigned long currentTime = millis();
   if (currentTime - lastHeartbeatReceived > CONNECTION_TIMEOUT) {
@@ -264,14 +277,14 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
       } else {
         Serial.println("Failed to send UDP packet");
         LED1.blink(50, 50);  // Indicate transmission failure
+        Udp.clear();
       }
       Serial.print("Sent to IP: ");
       Serial.print(udpServerIP);
       Serial.print(", port ");
       Serial.println(replyPort);
     } else {
-      Serial.println("Ethernet not connected or no IP. Cannot send UDP.");
-      LED1.blink(100, 500);  // Indicate Ethernet connection issue
+     Udp.clear();
     }
   } else {
     Serial.println("Received unknown data type");
@@ -295,6 +308,8 @@ void setup() {
   LED3.turnOFF();
   pinMode(switchPin, INPUT_PULLUP);  // Configurar el pin del interruptor
 
+  delay(5000);
+
   // Ethernet INIT
   Network.onEvent(onEvent);
 
@@ -304,6 +319,10 @@ void setup() {
   delay(5000);
 
   //Udp.begin(localUdpPort);  // Enable UDP listening to receive data
+
+  timer = timerBegin(1000000);                     //timer 1Mhz resolution
+  timerAttachInterrupt(timer, &resetModule);       //attach callback
+  timerAlarm(timer, wdtTimeout * 1000, false, 0);  //set time in us
 
   checkSwitch();
   // Initialize based on initial switch state
@@ -320,6 +339,8 @@ void loop() {
   LED2.loop();
   LED3.loop();
   checkSwitch();
+  timerWrite(timer, 0);  //reset timer (feed watchdog)
+  long loopTime = millis();
   unsigned long currentMillis = millis();
 
   if (programmingMode) {
@@ -342,7 +363,11 @@ void loop() {
     Serial.print("IP Address:");
     Serial.println(ETH.localIP());
   }
+  loopTime = millis() - loopTime;
+  // Serial.print("loop time is = ");
+  // Serial.println(loopTime);  //should be under 5000
 }
+
 void checkSwitch() {
   static unsigned long lastDebounceTime = 0;
   static int lastSwitchState = LOW;
@@ -401,6 +426,7 @@ void stopProgrammingMode() {
 
 void initEspNow() {
   WiFi.mode(WIFI_STA);
+  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_LR);
   esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE);
   delay(1000);
   

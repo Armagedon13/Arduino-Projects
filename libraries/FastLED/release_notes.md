@@ -1,7 +1,37 @@
+FastLED 3.7.3
+=============
+Adds Arduino IDE 2.3.1+ support in the idf-5.1 toolchain
+The following boards are now tested to compile and build
+  * esp32dev
+  * esp32c3
+  * esp32s3
+The following boards do not compile as of 8/17/2024:
+  * esp32c6
+
+
+FastLED 3.7.2
+=============
+This is a feature enhancement release
+  * https://github.com/FastLED/FastLED/commit/cbfede210fcf90bcec6bbc6eee7e9fbd6256fdd1
+    * fill_gradient() now has higher precision for non __AVR__ boards.
+		* Fixes: https://github.com/FastLED/FastLED/issues/1658
+			* Thanks https://github.com/sutaburosu for the fix.
+
+
+FastLED 3.7.1
+=============
+This is a bug fix release
+  * https://github.com/FastLED/FastLED/commit/85650d9eda459df20ea966b85d48b84053c2c604
+    * Addresses compiler issues related ESP32-S3 and the RMT legacy driver in ArduinoIDE 2.3.2 update which now includes the ESP-IDF 5.1.
+    * Note that this is a compiler fix *only* and was simple. If the community reports additional problems we will release a bugfix to address it.
+  * https://github.com/FastLED/FastLED/commit/e0a34180c5ad1512aa39f6b6c0987119535d39e8
+    * Work around for ESP32 halt when writing WS2812 LEDS under massive load. It appears there was an underflow condition in a critical ISR to refill the RMT buffer that did not give back to a semaphore. Subsequent calls to `show()` would then block forever. We now given a max timeout so that in the worse case scenario there will be a momentary hang of `portMAX_DELAY`.
+
+
 FastLED 3.7.0
 =============
 This release incorporates valuable improvements from FastLED contributors, tested and explored by the world-wide FastLED community of artists, creators, and developers.  Thank you for all of your time, energy, and help!  Here are some of the most significant changes in FastLED 3.7.0:
-* Support for ESP-IDF version 5.x on ESP32 and ESP8266
+* Support for ESP-IDF version 5.x on ESP32 and ESP8266a
 * Improved support for new boards including UNO r4, Adafruit Grand Central Metro M4, SparkFun Thing Plus, RP2040, Portenta C33, and others.  We also added a pointer to the PORTING.md document to help streamline additional porting; if you’re porting to a new microcontroller, PORTING.md is the place to start.
 * New gamma correction capability for APA102 and SK9822 LEDs
 * Bug fixes and performances improvements, including faster smaller code on AVR, fewer compiler warnings, and  faster build times

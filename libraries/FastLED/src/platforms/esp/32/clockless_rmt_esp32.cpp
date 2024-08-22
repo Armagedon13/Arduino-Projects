@@ -58,6 +58,15 @@ typedef struct {
 extern rmt_block_mem_t RMTMEM;
 #endif
 
+
+void IRAM_ATTR GiveGTX_sem()
+{
+    if (gTX_sem != NULL)
+        {
+        xSemaphoreGive(gTX_sem);
+        }
+}
+
 ESP32RMTController::ESP32RMTController(int DATA_PIN, int T1, int T2, int T3, int maxChannel, int memBlocks)
     : mPixelData(0), 
       mSize(0), 
@@ -198,7 +207,7 @@ void IRAM_ATTR ESP32RMTController::showPixels()
     gNumStarted++;
 
     // -- The last call to showPixels is the one responsible for doing
-    //    all of the actual worl
+    //    all of the actual work
     if (gNumStarted == gNumControllers) {
         gNext = 0;
 
@@ -220,7 +229,7 @@ void IRAM_ATTR ESP32RMTController::showPixels()
         // -- Wait here while the data is sent. The interrupt handler
         //    will keep refilling the RMT buffers until it is all
         //    done; then it gives the semaphore back.
-        xSemaphoreTake(gTX_sem, portMAX_DELAY);
+        xSemaphoreTake(gTX_sem, FASTLED_RMT_MAX_TICKS_FOR_GTX_SEM);
         xSemaphoreGive(gTX_sem);
 
         // -- Make sure we don't call showPixels too quickly
@@ -323,6 +332,19 @@ void IRAM_ATTR ESP32RMTController::tx_start()
     RMT.tx_conf[mRMT_channel].tx_start = 1;
 #elif CONFIG_IDF_TARGET_ESP32S3
     // rmt_ll_tx_reset_pointer(&RMT, mRMT_channel)
+    #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    RMT.chnconf0[mRMT_channel].mem_rd_rst_chn = 1;
+    RMT.chnconf0[mRMT_channel].mem_rd_rst_chn = 0;
+    RMT.chnconf0[mRMT_channel].apb_mem_rst_chn = 1;
+    RMT.chnconf0[mRMT_channel].apb_mem_rst_chn = 0;
+    // rmt_ll_clear_tx_end_interrupt(&RMT, mRMT_channel)
+    RMT.int_clr.val = (1 << (mRMT_channel));
+    // rmt_ll_enable_tx_end_interrupt(&RMT, mRMT_channel, true)
+    RMT.int_ena.val |= (1 << mRMT_channel);
+    // rmt_ll_tx_start(&RMT, mRMT_channel)
+    RMT.chnconf0[mRMT_channel].conf_update_chn = 1;
+    RMT.chnconf0[mRMT_channel].tx_start_chn = 1;
+    #else
     RMT.chnconf0[mRMT_channel].mem_rd_rst_n = 1;
     RMT.chnconf0[mRMT_channel].mem_rd_rst_n = 0;
     RMT.chnconf0[mRMT_channel].apb_mem_rst_n = 1;
@@ -334,6 +356,20 @@ void IRAM_ATTR ESP32RMTController::tx_start()
     // rmt_ll_tx_start(&RMT, mRMT_channel)
     RMT.chnconf0[mRMT_channel].conf_update_n = 1;
     RMT.chnconf0[mRMT_channel].tx_start_n = 1;
+    #endif
+#elif CONFIG_IDF_TARGET_ESP32C6
+    // rmt_ll_tx_reset_pointer(&RMT, mRMT_channel)
+    RMT.chnconf0[mRMT_channel].mem_rd_rst_chn = 1;
+    RMT.chnconf0[mRMT_channel].mem_rd_rst_chn = 0;
+    RMT.chnconf0[mRMT_channel].apb_mem_rst_chn = 1;
+    RMT.chnconf0[mRMT_channel].apb_mem_rst_chn = 0;
+    // rmt_ll_clear_tx_end_interrupt(&RMT, mRMT_channel)
+    RMT.int_clr.val = (1 << (mRMT_channel));
+    // rmt_ll_enable_tx_end_interrupt(&RMT, mRMT_channel, true)
+    RMT.int_ena.val |= (1 << mRMT_channel);
+    // rmt_ll_tx_start(&RMT, mRMT_channel)
+    RMT.chnconf0[mRMT_channel].conf_update_chn = 1;
+    RMT.chnconf0[mRMT_channel].tx_start_chn = 1;
 #elif CONFIG_IDF_TARGET_ESP32S2 || CONFIG_IDF_TARGET_ESP32
     // rmt_ll_tx_reset_pointer(&RMT, mRMT_channel)
     RMT.conf_ch[mRMT_channel].conf1.mem_rd_rst = 1;
@@ -345,6 +381,19 @@ void IRAM_ATTR ESP32RMTController::tx_start()
     RMT.int_ena.val |= (1 << (mRMT_channel * 3));
     // rmt_ll_tx_start(&RMT, mRMT_channel)
     RMT.conf_ch[mRMT_channel].conf1.tx_start = 1;
+#elif CONFIG_IDF_TARGET_ESP32C6
+    // rmt_ll_tx_reset_pointer(&RMT, mRMT_channel)
+    RMT.chnconf0[mRMT_channel].mem_rd_rst_chn = 1;
+    RMT.chnconf0[mRMT_channel].mem_rd_rst_chn = 0;
+    RMT.chnconf0[mRMT_channel].apb_mem_rst_chn = 1;
+    RMT.chnconf0[mRMT_channel].apb_mem_rst_chn = 0;
+    // rmt_ll_clear_tx_end_interrupt(&RMT, mRMT_channel)
+    RMT.int_clr.val = (1 << (mRMT_channel));
+    // rmt_ll_enable_tx_end_interrupt(&RMT, mRMT_channel, true)
+    RMT.int_ena.val |= (1 << mRMT_channel);
+    // rmt_ll_tx_start(&RMT, mRMT_channel)
+    RMT.chnconf0[mRMT_channel].conf_update_chn = 1;
+    RMT.chnconf0[mRMT_channel].tx_start_chn = 1;
 #else
     #error Not yet implemented for unknown ESP32 target
 #endif
@@ -386,6 +435,15 @@ void IRAM_ATTR ESP32RMTController::doneOnChannel(rmt_channel_t channel, void * a
     // rmt_ll_enable_tx_end_interrupt(&RMT, channel)
     RMT.int_ena.val &= ~(1 << channel);
     // rmt_ll_tx_stop(&RMT, channel)
+    #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+    RMT.chnconf0[channel].tx_stop_chn = 1;
+    RMT.chnconf0[channel].conf_update_chn = 1;
+    // rmt_ll_tx_reset_pointer(&RMT, channel)
+    RMT.chnconf0[channel].mem_rd_rst_chn = 1;
+    RMT.chnconf0[channel].mem_rd_rst_chn = 0;
+    RMT.chnconf0[channel].apb_mem_rst_chn = 1;
+    RMT.chnconf0[channel].apb_mem_rst_chn = 0;
+    #else
     RMT.chnconf0[channel].tx_stop_n = 1;
     RMT.chnconf0[channel].conf_update_n = 1;
     // rmt_ll_tx_reset_pointer(&RMT, channel)
@@ -393,6 +451,18 @@ void IRAM_ATTR ESP32RMTController::doneOnChannel(rmt_channel_t channel, void * a
     RMT.chnconf0[channel].mem_rd_rst_n = 0;
     RMT.chnconf0[channel].apb_mem_rst_n = 1;
     RMT.chnconf0[channel].apb_mem_rst_n = 0;
+    #endif
+#elif CONFIG_IDF_TARGET_ESP32C6
+    // rmt_ll_enable_tx_end_interrupt(&RMT, channel)
+    RMT.int_ena.val &= ~(1 << channel);
+    // rmt_ll_tx_stop(&RMT, channel)
+    RMT.chnconf0[channel].tx_stop_chn = 1;
+    RMT.chnconf0[channel].conf_update_chn = 1;
+    // rmt_ll_tx_reset_pointer(&RMT, channel)
+    RMT.chnconf0[channel].mem_rd_rst_chn = 1;
+    RMT.chnconf0[channel].mem_rd_rst_chn = 0;
+    RMT.chnconf0[channel].apb_mem_rst_chn = 1;
+    RMT.chnconf0[channel].apb_mem_rst_chn = 0;
 #elif CONFIG_IDF_TARGET_ESP32S2
     // rmt_ll_enable_tx_end_interrupt(&RMT, channel)
     RMT.int_ena.val &= ~(1 << (channel * 3));
@@ -454,6 +524,9 @@ void IRAM_ATTR ESP32RMTController::interruptHandler(void *arg)
         #elif CONFIG_IDF_TARGET_ESP32S3 || CONFIG_IDF_TARGET_ESP32C3 || CONFIG_IDF_TARGET_ESP32H2
         int tx_done_bit = channel;
         int tx_next_bit = channel + 8;
+        #elif CONFIG_IDF_TARGET_ESP32C6
+        int tx_done_bit = channel; // TODO correct?
+        int tx_next_bit = channel + 8; // TODO correct?
         #elif CONFIG_IDF_TARGET_ESP32
         int tx_done_bit = channel * 3;
         int tx_next_bit = channel + 24;

@@ -23,9 +23,15 @@ Receptor
 #include <WiFi.h>
 #include <esp_wifi.h> // only for esp_wifi_set_channel()
 
-#include <ArduinoOTA.h>
+#include "esp_system.h"
+#include "rom/ets_sys.h"
 
 #include <ezLED.h> // ezLED library
+
+// Watchdog
+const int button = 0;         //gpio to use to trigger delay
+const int wdtTimeout = 3000;  //time in ms to trigger the watchdog
+hw_timer_t *timer = NULL;
 
 // Definir pines para LEDs y switch
 /*
@@ -44,9 +50,12 @@ ezLED LED3(activityLedPin);
 
 #define switchPin 21  // Pin del interruptor
 
-bool programmingMode = false;
-
 bool eth_connected = false;
+
+void ARDUINO_ISR_ATTR resetModule() {
+  ets_printf("reboot\n");
+  esp_restart();
+}
 
 // ALL INTERNET EVENTS
 // WARNING: onEvent is called from a separate FreeRTOS task (thread)!
@@ -259,15 +268,6 @@ void onDataReceive(const esp_now_recv_info *info, const uint8_t *incomingData, i
   }
 }
 
-// OTA----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-const char *ssid = "Receptor PGR-MODE";
-const char *password = "lalaland";
-
-// OTA AP Static IP configuration
-IPAddress local_ip_AP(192, 168, 4, 23);
-IPAddress gateway_AP(192, 168, 4, 10);
-IPAddress subnet_AP(255, 255, 255, 0);
-
 // Setup --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 void setup() {
   Serial.begin(115200);
@@ -276,110 +276,6 @@ void setup() {
   LED3.turnOFF();
   pinMode(switchPin, INPUT_PULLUP);  // Configurar el pin del interruptor
 
-  // Ethernet INIT
-  Network.onEvent(onEvent);
-
-  SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
-  ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
-  //ETH.config(local_ip);  // Static IP, leave without this line to get IP via DHCP
-  delay(5000);
-
-  //Udp.begin(localUdpPort);  // Enable UDP listening to receive data
-
-  checkSwitch();
-  // Initialize based on initial switch state
-  if (programmingMode) {
-    startProgrammingMode();
-  } else {
-    initEspNow();
-  }
-}
-
-// Loop -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-void loop() {
-  LED1.loop();
-  LED2.loop();
-  LED3.loop();
-  checkSwitch();
-  unsigned long currentMillis = millis();
-
-  if (programmingMode) {
-    ArduinoOTA.handle();
-  }
-  else{
-    if (currentMillis - lastHeartbeatSent >= HEARTBEAT_INTERVAL) {
-      sendHeartbeat();
-      lastHeartbeatSent = currentMillis;
-    }
-    checkConnectionStatus();
-  }
-  if (eth_connected && !((uint32_t)ETH.localIP())){
-    while(!((uint32_t)ETH.localIP())) // Waiting for IP
-    {
-
-    }
-    Serial.println("Connected");
-    Serial.print("IP Address:");
-    Serial.println(ETH.localIP());
-  }
-}
-void checkSwitch() {
-  static unsigned long lastDebounceTime = 0;
-  static int lastSwitchState = LOW;
-  static const unsigned long debounceDelay = 50;
-
-  int reading = digitalRead(switchPin);
-
-  if (reading != lastSwitchState) {
-    lastDebounceTime = millis();
-  }
-
-  if ((millis() - lastDebounceTime) > debounceDelay) {
-    if (reading != programmingMode) {
-      programmingMode = reading;
-      if (programmingMode) {
-        startProgrammingMode();
-      } else {
-        stopProgrammingMode();
-      }
-      delay(100);  // Add a small delay after mode change
-    }
-  }
-
-  lastSwitchState = reading;
-}
-
-void startProgrammingMode() {
-  LED1.turnOFF();
-  LED2.turnOFF();
-  LED3.turnOFF();
-  delay(10);
-  WiFi.mode(WIFI_AP_STA);
-  WiFi.softAPConfig(local_ip_AP, gateway_AP, subnet_AP);
-  WiFi.softAP(ssid, password);
-  setupOTA();
-  
-  Serial.println("Programming mode started. WiFi AP active.");
-  LED1.blink(500, 500);
-  LED2.blink(500, 500);  // Blink green LED to indicate programming mode
-  LED3.blink(500, 500);
-}
-
-void stopProgrammingMode() {
-  WiFi.softAPdisconnect(true);
-  WiFi.mode(WIFI_OFF);
-  delay(1000);
-  ArduinoOTA.end();
-  LED1.turnOFF();
-  LED2.turnOFF();  // Turn off green LED
-  LED3.turnOFF();
-  
-  initEspNow();
-
-  Serial.println("Programming mode stopped. ESP-NOW active.");
-}
-
-void initEspNow() {
   WiFi.mode(WIFI_STA);
   esp_wifi_set_protocol(WIFI_IF_STA  , WIFI_PROTOCOL_LR);
   esp_wifi_set_channel(CHANNEL, WIFI_SECOND_CHAN_NONE);
@@ -414,41 +310,46 @@ void initEspNow() {
     LED2.blink(250, 750);  // Blink green LED to indicate ESP-NOW is paired
     LED1.turnOFF();
   }
-  Serial.println("Done");
 
   Serial.println("ESP-NOW Receiver Initialized");
+
+  // Ethernet INIT
+  Network.onEvent(onEvent);
+
+  SPI.begin(ETH_SPI_SCK, ETH_SPI_MISO, ETH_SPI_MOSI);
+  ETH.begin(ETH_PHY_TYPE, ETH_PHY_ADDR, ETH_PHY_CS, ETH_PHY_IRQ, ETH_PHY_RST, SPI);
+  //ETH.config(local_ip);  // Static IP, leave without this line to get IP via DHCP
+  delay(5000);
+
+  //Udp.begin(localUdpPort);  // Enable UDP listening to receive data
+
+  timer = timerBegin(1000000);                     //timer 1Mhz resolution
+  timerAttachInterrupt(timer, &resetModule);       //attach callback
+  timerAlarm(timer, wdtTimeout * 1000, false, 0);  //set time in us
+
 }
 
-void setupOTA() {
-  ArduinoOTA.setHostname("esp32-receptor");
-  ArduinoOTA.onStart([]() {
-    String type;
-    if (ArduinoOTA.getCommand() == U_FLASH) {
-      type = "sketch";
-    } else {  // U_SPIFFS
-      type = "filesystem";
+// Loop -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+void loop() {
+  timerWrite(timer, 0);  //reset timer (feed watchdog)
+  LED1.loop();
+  LED2.loop();
+  LED3.loop();
+  unsigned long currentMillis = millis();
+
+  if (currentMillis - lastHeartbeatSent >= HEARTBEAT_INTERVAL) {
+    sendHeartbeat();
+    lastHeartbeatSent = currentMillis;
+  }
+  checkConnectionStatus();
+  
+  if (eth_connected && !((uint32_t)ETH.localIP())){
+    while(!((uint32_t)ETH.localIP())) // Waiting for IP
+    {
+
     }
-    Serial.println("Start updating " + type);
-  });
-  ArduinoOTA.onEnd([]() {
-    Serial.println("\nEnd");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) {
-      Serial.println("Auth Failed");
-    } else if (error == OTA_BEGIN_ERROR) {
-      Serial.println("Begin Failed");
-    } else if (error == OTA_CONNECT_ERROR) {
-      Serial.println("Connect Failed");
-    } else if (error == OTA_RECEIVE_ERROR) {
-      Serial.println("Receive Failed");
-    } else if (error == OTA_END_ERROR) {
-      Serial.println("End Failed");
-    }
-  });
-  ArduinoOTA.begin();
+    Serial.println("Connected");
+    Serial.print("IP Address:");
+    Serial.println(ETH.localIP());
+  }
 }

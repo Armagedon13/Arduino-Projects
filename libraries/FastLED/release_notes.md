@@ -1,3 +1,184 @@
+
+FastLED 3.9.2
+=============
+* WS28XX family of led chipsets can now be overclocked
+  * See also define `FASTLED_LED_OVERCLOCK`
+    * Example: `#define FASTLED_OVERCLOCK 1.2` (gives 20% overclock).
+    * You can set this define before you include `"FastLED.h"`
+    * Slower chips like AVR which do software bitbanging will ignore this.
+    * This discovery came from this reddit thread:
+      * https://www.reddit.com/r/FastLED/comments/1gdqtw5/comment/luegowu
+      * A special thanks to https://www.reddit.com/user/Tiny_Structure_7/ for discovering this!
+    * See examples/Overclock.ino for a working demo.
+  * You can either overclock globally or per led chipset on supported chipsets.
+  * Real world tests
+    * I (Zach Vorhies) have seen 25% overclock on my own test setup using cheap amazon WS2812.
+    * u/Tiny_Structure_7 was able to overclock quality WS2812 LEDs 800khz -> 1.2mhz!!
+    * Assuming 550 WS2812's can be driven at 60fps at normal clock.
+      * 25% overclock: 687 @ 60fps
+      * 50% overclock: 825 @ 60fps
+      * Animartrix benchmark (ESP32S3)
+        * 3.7.X: 34fps
+        * 3.9.0: 59fps
+        * 3.9.2: 70fps @ 20% overclock (after this the CPU becomes the bottleneck).
+      * FastLED is now likely at the theoretical maximum speed and efficiency for frame draw (async) & dispatch (overclock).
+  * Fixes `ESPAsyncWebServer.h` namespace collision with `fs.h` in FastLED, which has been renamed to `file_system.h`
+
+FastLED 3.9.1
+=============
+* Bug fix for namespace conflicts
+* One of our third_party libraries was causing a namespace conflict with ArduinoJson included by the user.
+  * If you are affected then please upgrade.
+* FastLED now supports it's own namespace, default is `fl`
+  * Off by default, as old code wants FastLED stuff to be global.
+  * Enable it by defining: `FASTLED_FORCE_NAMESPACE`
+
+
+FastLED 3.9.0
+=============
+* Beta 4.0.0 release
+* ESP32 RMT5 Driver Implemented.
+  * Driver crashes on boot should now be solved.
+  * Parallel AND async.
+    * Drive up to 8 channels in parallel (more, for future boards) with graceful fallback
+      if your sketch allocates some of them.
+        * In the 3.7.X series the total number of RMT channels was limited to 4.
+    * async mode means FastLED.show() returns immediately if RMT channels are ready for new
+      data. This means you can compute the next frame while the current frame is being drawn.
+  * Flicker with WIFI *should* be solved. The new RMT 5.1 driver features
+    large DMA buffers and deep transaction queues to prevent underflow conditions.
+  * Memory efficient streaming encoding. As a result the "one shot" encoder no longer
+    exists for the RMT5 driver, but may be added back at a future date if people want it.
+  * If for some reason the RMT5 driver doesn't work for you then use the following define `FASTLED_RMT5=0` to get back the old behavior.
+* Improved color mixing algorithm, global brightness, and color scaling are now separate for non-AVR platforms. This only affects chipsets that have higher than RGB8 output, aka APA102, and clones
+  right now.
+  * APA102 and APA102HD now perform their own color mixing in psuedo 13 bit space.
+    * If you don't like this behavior you can always go back by using setting `FASTLED_HD_COLOR_MIXING=0`.
+* Binary size
+  * Avr platforms now use less memory
+  * 200 bytes in comparison to 3.7.8:
+    * 3.7.8: attiny85 size was 9447 (limit is 9500 before the builder triggers a failure)
+    * 3.8.0: attiny85 size is now 9296
+    * This is only true for the WS2812 chipset. The APA102 chipset consumes significantly more memory.
+* Compile support for ATtiny1604 and other Attiny boards
+  * Many of these boards were failing a linking step due to a missing timer_millis value. This is now injected in via weak symbol for these boards, meaning that you won't get a linker error if you include code (like wiring.cpp) that defines this.
+  * If you need a working timer value on AVR that increases via an ISR you can do so by defining `FASTLED_DEFINE_AVR_MILLIS_TIMER0_IMPL=1`
+* Board support
+  * nordicnrf52_dk now supported and tested (thanks https://github.com/paulhayes!)
+* Some unannounced features.
+* Happy coding!
+
+
+For sketches that do a lot of heavy processing for each frame, FastLED is going to be **significantly** faster with this new release.
+
+How much faster?
+
+I benchmarked the animartrix sketch, which has heavy floating point requirements (you'll need a Teensy41 or an ESP32S3 to handle the processing requirements).
+
+FastLED 3.7.X - 34fps
+FastLED 3.9.0 - 59fps (+70% speedup!)
+
+Why?
+
+In FastLED 3.7.X, FastLED.show() was always a blocking operation. Now it's only blocking when the previous frame is waiting to complete it's render.
+
+In the benchmark I measured:
+12 ms - preparing the frame for draw.
+17 ms - actually drawing the frame.
+
+@ 22x22 WS2812 grid.
+
+So for FastLED 3.7.X this meant that these two values would sum together. So 12ms + 17ms = 29ms = 34fps.
+But in FastLED 3.9.0 the calculation works like this MAX(12, 17) = 17ms = 59fps. If you fall into this category, FastLED will now free up 17ms to do available work @ 60fps, which is a game changer.
+
+As of today's release, nobody else is doing async drawing. FastLED is the only one to offer this feature.
+
+FastLED 3.8.0
+=============
+* Attiny0/1 (commonly Attiny85) support added.
+  * https://github.com/FastLED/FastLED/pull/1292 , https://github.com/FastLED/FastLED/pull/1183 , https://github.com/FastLED/FastLED/pull/1061
+  * Special thanks to [@freemovers](https://github.com/freemovers), [@jasoncoon](https://github.com/jasoncoon), [@ngyl88](https://github.com/ngyl88) for the contribution.
+  * Many common boards are now compiled in the Attiny family. See our repo for which ones are supported.
+* Arduino nano compiling with new pin definitions.
+  *  https://github.com/FastLED/FastLED/pull/1719
+  *  Thanks to https://github.com/ngyl88 for the contribution!
+* New STM32F1 boards compiling
+  * bluepill
+  * maple mini
+* CPPCheck now passing for HIGH and MEDIUM severity on all platforms.
+
+
+FastLED 3.7.7
+=============
+* WS2812 RGBW mode is now part of the API.
+  * Api: `FastLED.addLeds<WS2812, DATA_PIN, GRB>(leds, NUM_LEDS).setRgbw(RgbwDefault());`
+  * Only enabled on ESP32 boards, no-op on other platforms.
+  * See [examples/RGBW/RGBW.ino](https://github.com/FastLED/FastLED/blob/master/examples/RGBW/RGBW.ino)
+* WS2812 Emulated RGBW Controller
+  * Works on all platforms (theoretically)
+  * Has an extra side buffer to convert RGB -> RGBW data.
+    * This data is sent to the real driver as if it were RGB data.
+    * Some padding is added when source LED data is not a multiple of 3.
+  * See [examples/RGBWEmulated/RGBWEmulated.ino](https://github.com/FastLED/FastLED/blob/master/examples/RGBW/RGBW.ino)
+* New supported chipsets
+  * UCS1912 (Clockless)
+  * WS2815 (Clockless)
+* New supported boards
+  * xiaoblesense_adafruit
+    * Fixes https://github.com/FastLED/FastLED/issues/1445
+* [PixelIterator](src/pixel_iterator.h) has been introduced to reduce complexity of writing driver code
+  * This is how RGBW mode was implemented.
+  * This is a concrete class (no templates!) so it's suitable for driver code in cpp files.
+  * PixelController<> can convert to a PixelIterator, see `PixelController<>::as_iterator(...)`
+* Fixed APA102HD mode for user supplied function via the linker. Added test so that it won't break.
+
+
+FastLED 3.7.6
+=============
+* WS2812 RGBW Mode enabled on ESP32 via experimental `FASTLED_EXPERIMENTAL_ESP32_RGBW_ENABLED`
+* RPXXXX compiler fixes to solve asm segment overflow violation
+* ESP32 binary size blew up in 3.7.5, in 3.7.6 it's back to the same size as 3.7.4
+* APA102 & SK9822 have downgraded their default clock speed to improve "just works" experience
+  * APA102 chipsets have downgraded their default clock from 24 mhz to 6mhz to get around the "long strip signal degradation bug"
+    * https://www.pjrc.com/why-apa102-leds-have-trouble-at-24-mhz/
+    * We are prioritizing "just works by default" rather than "optimized by default but only for short strips".
+    * 6 Mhz is still blazingly fast compared to WS2812 and you can always bump it up to get more performance.
+  * SK9822 have downgraded their default clock from 24 mhz -> 12 mhz out of an abundance of caution.
+    * I don't see an analysis of whether SK9822 has the same issue as the APA102 for the clock signal degredation.
+    * However, 12 mhz is still blazingly fast (>10x) compared to WS2812. If you need faster, bump it up.
+* NRF52XXX platforms
+  * Selecting an invalid pin will not spew pages and pages of template errors. Now it's been deprecated to a runtime message and assert.
+* nrf52840 compile support now official.
+
+FastLED 3.7.5
+=============
+
+* split the esp32-idf 4.x vs 5.x rmt driver. 5.x just redirects to 4.x by @zackees in https://github.com/FastLED/FastLED/pull/1682
+* manually merged in stub from https://github.com/FastLED/FastLED/pull/1366 by @zackees in https://github.com/FastLED/FastLED/pull/1685
+* manually merge changes from https://github.com/FastLED/FastLED/compare/master...ben-xo:FastLED:feature/avr-clockless-trinket-interrupts by @zackees in https://github.com/FastLED/FastLED/pull/1686
+* Add simplex noise [revisit this PR in 2022] by @aykevl in https://github.com/FastLED/FastLED/pull/1252
+* Add ColorFromPaletteExtended function for higher precision by @zackees in https://github.com/FastLED/FastLED/pull/1687
+* correct RP2350 PIO count / fix double define SysTick by @FeuerSturm in https://github.com/FastLED/FastLED/pull/1689
+* improved simplex noise by @zackees in https://github.com/FastLED/FastLED/pull/1690
+* Fix shift count overflow on AVR in simplex snoise16 by @tttapa in https://github.com/FastLED/FastLED/pull/1692
+* adds extended color palette for 256 by @zackees in https://github.com/FastLED/FastLED/pull/1697
+* RP2350 board now compiles.
+
+
+
+FastLED 3.7.4
+=============
+Board support added
+  * https://github.com/FastLED/FastLED/pull/1681
+    * Partial support for adafruit nrf sense
+      * WS2812 compiles
+      * APA102 does not
+    * Hat tip to https://github.com/SamShort7 for the patch.
+  * https://github.com/FastLED/FastLED/pull/1630
+    * Adafruit Pixel Trinkey M0 support
+    * Hat tip: https://github.com/BlitzCityDIY
+
+
 FastLED 3.7.3
 =============
 Adds Arduino IDE 2.3.1+ support in the idf-5.1 toolchain
@@ -5,8 +186,8 @@ The following boards are now tested to compile and build
   * esp32dev
   * esp32c3
   * esp32s3
-The following boards do not compile as of 8/17/2024:
   * esp32c6
+  * esp32s2
 
 
 FastLED 3.7.2

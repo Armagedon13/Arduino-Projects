@@ -144,9 +144,14 @@ public:
         int sm;
         int offset = -1;
         
+	#if defined(PICO_RP2040)
         // find an unclaimed PIO state machine and upload the clockless program if possible
         // there's two PIO instances, each with four state machines, so this should usually work out fine
-        const PIO pios[NUM_PIOS] = { pio0, pio1 };
+		const PIO pios[NUM_PIOS] = { pio0, pio1 };
+	#elif defined(PICO_RP2350)
+		// RP2350 features three PIO instances!
+		const PIO pios[NUM_PIOS] = { pio0, pio1, pio2 };
+	#endif
         // iterate over PIO instances
         for (unsigned int i = 0; i < NUM_PIOS; i++) {
             pio = pios[i];
@@ -303,9 +308,9 @@ public:
         data.d[0] = pixels.d[0];
         data.d[1] = pixels.d[1];
         data.d[2] = pixels.d[2];
-        data.s[0] = pixels.mScale[0];
-        data.s[1] = pixels.mScale[1];
-        data.s[2] = pixels.mScale[2];
+        data.s[0] = pixels.mColorAdjustment.premixed[0];
+        data.s[1] = pixels.mColorAdjustment.premixed[1];
+        data.s[2] = pixels.mColorAdjustment.premixed[2];
         data.e[0] = pixels.e[0];
         data.e[1] = pixels.e[1];
         data.e[2] = pixels.e[2];

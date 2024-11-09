@@ -4,29 +4,71 @@ Build artifacts are recycled within a board group so that subsequent ino
 files are built faster.
 """
 
-import os
-import sys
-import subprocess
-import concurrent.futures
-import time
-from pathlib import Path
-from threading import Lock
 import argparse
+import sys
+import time
+import warnings
+from pathlib import Path
 
+from ci.boards import Board, get_board
+from ci.concurrent_run import ConcurrentRunArgs, concurrent_run
+from ci.locked_print import locked_print
 
-IS_GITHUB = "GITHUB_ACTIONS" in os.environ
-FIRST_BUILD_LOCK = Lock()
-USE_FIRST_BUILD_LOCK = IS_GITHUB
+HERE = Path(__file__).parent.resolve()
 
-# Project initialization doesn't take a lot of memory or cpu so it's safe to run in parallel
-PARRALLEL_PROJECT_INITIALIZATION = os.environ.get("PARRALLEL_PROJECT_INITIALIZATION", "1") == "1"
+LIBS = ["src", "ci"]
+EXTRA_LIBS = [
+    "ESP Async WebServer",
+    "AsyncTCP",
+    "ArduinoOTA",
+    "SD",
+    "FS",
+    "ESPmDNS",
+    "WiFi",
+    "WebSockets",
+]
+BUILD_FLAGS = ["-Wl,-Map,firmware.map", "-fopt-info-all=optimization_report.txt"]
 
-# An open source version of the esp-idf 5.1 platform for the ESP32 that
-# gives esp32 boards the same build environment as the Arduino 2.3.1+.
-ESP32_IDF_5_1 = "https://github.com/zackees/platform-espressif32#Arduino/IDF5"
+# Default boards to compile for. You can use boards not defined here but
+# if the board isn't part of the officially supported platformio boards then
+# you will need to add the board to the ~/.platformio/platforms directory.
+# prior to running this script. This happens automatically as of 2024-08-20
+# with the github workflow scripts.
+DEFAULT_BOARDS_NAMES = [
+    "uno",  # Build is faster if this is first, because it's used for global init.
+    "esp32dev",
+    "esp01",  # ESP8266
+    "esp32-c3-devkitm-1",
+    "attiny85",
+    "ATtiny1616",
+    "esp32-c6-devkitc-1",
+    "esp32-s3-devkitc-1",
+    "yun",
+    "digix",
+    "teensy30",
+    "teensy41",
+    "adafruit_feather_nrf52840_sense",
+    "xiaoblesense_adafruit",
+    "rpipico",
+    "rpipico2",
+    "uno_r4_wifi",
+    "esp32dev_i2s",
+    "esp32rmt_51",
+    "esp32dev_idf44",
+    "bluepill",
+    "esp32rmt_51",
+]
 
-EXAMPLES = [
+OTHER_BOARDS_NAMES = [
+    "nano_every",
+    "esp32-c2-devkitm-1",
+]
+
+# Examples to compile.
+DEFAULT_EXAMPLES = [
+    "Apa102",
     "Apa102HD",
+    "Apa102HDOverride",
     "Blink",
     "ColorPalette",
     "ColorTemperature",
@@ -43,232 +85,193 @@ EXAMPLES = [
     "Pride2015",
     "RGBCalibrate",
     "RGBSetDemo",
+    "RGBW",
+    "RGBWEmulated",
     "TwinkleFox",
     "XYMatrix",
+    "Video/Gfx2Video",
+    "SdCard",
 ]
-
-BOARDS = [
-    "uno",  # Build is faster if this is first, because it's used for global init.
-    "esp32dev",
-    "esp01",  # ESP8266
-    "esp32-c3-devkitm-1",
-    # "esp32-c6-devkitc-1", # doesn't work yet.
-    "esp32-s3-devkitc-1",
-    "yun",
-    "digix",
-    "teensy30"
-]
-
-
-
-CUSTOM_PROJECT_OPTIONS = {
-    "esp32dev": f"platform={ESP32_IDF_5_1}",
-    #"esp01": f"platform={ESP32_IDF_5_1}",
-    "esp32-c3-devkitm-1": f"platform={ESP32_IDF_5_1}",
-    "esp32-c6-devkitc-1": f"platform={ESP32_IDF_5_1}",
-    "esp32-s3-devkitc-1": f"platform={ESP32_IDF_5_1}",
-}
-
-ERROR_HAPPENED = False
-PRINT_LOCK = Lock()
-
-def cpu_count() -> int:
-    """Get the number of CPUs."""
-    if "GITHUB_ACTIONS" in os.environ:
-        return 4
-    return os.cpu_count()
-    
-
-
-def locked_print(*args, **kwargs):
-    """Print with a lock to prevent garbled output for multiple threads."""
-    with PRINT_LOCK:
-        print(*args, **kwargs)
-
-
-def compile_for_board_and_example(board: str, example: str) -> tuple[bool, str]:
-    """Compile the given example for the given board."""
-    builddir = Path(".build") / board
-    builddir = builddir.absolute()
-    builddir.mkdir(parents=True, exist_ok=True)
-    srcdir = builddir / "src"
-    # Remove the previous *.ino file if it exists, everything else is recycled
-    # to speed up the next build.
-    if srcdir.exists():
-        subprocess.run(["rm", "-rf", str(srcdir)], check=True)
-
-    locked_print(f"*** Building example {example} for board {board} ***")
-    cmd_list = [
-        "pio",
-        "ci",
-        "--board",
-        board,
-        "--lib=ci",
-        "--lib=src",
-        "--keep-build-dir",
-        f"--build-dir={builddir}",
-        f"examples/{example}/*ino",
-    ]
-    result = subprocess.run(
-        cmd_list,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=False,
-    )
-
-    locked_print(result.stdout)
-    if result.returncode != 0:
-        locked_print(f"*** Error compiling example {example} for board {board} ***")
-        return False, result.stdout
-    locked_print(f"*** Finished building example {example} for board {board} ***")
-    return True, result.stdout
-
-def create_build_dir(board: str, project_options: str | None) -> tuple[bool, str]:
-    """Create the build directory for the given board."""
-    locked_print(f"*** Initializing environment for board {board} ***")
-    builddir = Path(".build") / board
-    builddir = builddir.absolute()
-    builddir.mkdir(parents=True, exist_ok=True)
-
-    cmd_list = [
-        "pio",
-        "project",
-        "init",
-        "--project-dir",
-        str(builddir),
-        "--board",
-        board,
-    ]
-    if project_options:
-        cmd_list.append(f'--project-option={project_options}')
-    result = subprocess.run(
-        cmd_list,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        check=False,
-    )
-    stdout = result.stdout
-
-    locked_print(result.stdout)
-    if result.returncode != 0:
-        locked_print(f"*** Error setting up project for board {board} ***")
-        return False, stdout
-    locked_print(f"*** Finished initializing environment for board {board} ***")
-    return True, stdout
-
-
-# Function to process task queues for each board
-def compile_examples(board: str, examples: list[str]) -> tuple[bool, str]:
-    """Process the task queue for the given board."""
-    global ERROR_HAPPENED  # pylint: disable=global-statement
-    is_first = True
-    for example in examples:
-        if ERROR_HAPPENED:
-            return True
-        locked_print(f"\n*** Building {example} for board {board} ***")
-        if is_first:
-            locked_print(f"*** Building for first example {example} board {board} ***")
-        if is_first and USE_FIRST_BUILD_LOCK:
-            with FIRST_BUILD_LOCK:
-                # Github runners are memory limited and the first job is the most
-                # memory intensive since all the artifacts are being generated in parallel.
-                success, message = compile_for_board_and_example(board=board, example=example)
-        else:
-            success, message = compile_for_board_and_example(board=board, example=example)
-        is_first = False
-        if not success:
-            ERROR_HAPPENED = True
-            return False, f"Error building {example} for board {board}. stdout:\n{message}"
-    return True, ""
 
 
 def parse_args():
-    parser = argparse.ArgumentParser(description="Compile FastLED examples for various boards.")
-    parser.add_argument("--boards", type=str, help="Comma-separated list of boards to compile for")
-    parser.add_argument("--examples", type=str, help="Comma-separated list of examples to compile")
-    return parser.parse_args()
-
-
-def run(boards: list[str], examples: list[str]) -> int:
-    start_time = time.time()
-    # Necessary to create the first project alone, so that the necessary root directories
-    # are created and the subsequent projects can be created in parallel.
-    create_build_dir(boards[0], CUSTOM_PROJECT_OPTIONS.get(boards[0]))
-    # This is not memory/cpu bound but is instead network bound so we can run one thread
-    # per board to speed up the process.
-    parallel_init_workers = 1 if not PARRALLEL_PROJECT_INITIALIZATION else len(boards)
-    # Initialize the build directories for all boards
-    with concurrent.futures.ThreadPoolExecutor(max_workers=parallel_init_workers) as executor:
-        future_to_board = {
-            executor.submit(create_build_dir, board, CUSTOM_PROJECT_OPTIONS.get(board)): board
-            for board in boards
-        }
-        for future in concurrent.futures.as_completed(future_to_board):
-            board = future_to_board[future]
-            success, msg = future.result()
-            if not success:
-                locked_print(f"Error initializing build_dir for board {board}:\n{msg}")
-                # cancel all other tasks
-                for f in future_to_board:
-                    f.cancel()
-                return 1
-            else:
-                locked_print(f"Finished initializing build_dir for board {board}")
-    locked_print("\nAll build directories initialized.")
-    errors: list[str] = []
-    # Run the compilation process
-    num_cpus = max(1, min(cpu_count(), len(boards)))
-    with concurrent.futures.ThreadPoolExecutor(max_workers=num_cpus) as executor:
-        future_to_board = {
-            executor.submit(compile_examples, board, examples): board
-            for board in boards
-        }
-        for future in concurrent.futures.as_completed(future_to_board):
-            board = future_to_board[future]
-            success, msg = future.result()
-            if not success:
-                msg = f"Compilation failed for board {board}: {msg}"
-                errors.append(msg)
-                locked_print(f"Compilation failed for board {board}: {msg}.\nStopping.")
-                for f in future_to_board:
-                    f.cancel()
-                break
-    total_time = (time.time() - start_time) / 60
-    if ERROR_HAPPENED:
-        locked_print("\nDone. Errors happened during compilation.")
-        locked_print("\n".join(errors))
-        return 1
-    locked_print(
-        f"\nDone. Built all projects for all boards in {total_time:.2f} minutes."
+    parser = argparse.ArgumentParser(
+        description="Compile FastLED examples for various boards."
     )
-    return 0
+    # parser.add_argument(
+    #     "--boards", type=str, help="Comma-separated list of boards to compile for"
+    # )
+    # needs to be a positional argument instead
+    parser.add_argument(
+        "boards",
+        type=str,
+        help="Comma-separated list of boards to compile for",
+        nargs="?",
+    )
+    parser.add_argument(
+        "--examples", type=str, help="Comma-separated list of examples to compile"
+    )
+    parser.add_argument(
+        "--skip-init", action="store_true", help="Skip the initialization step"
+    )
+    parser.add_argument(
+        "--defines", type=str, help="Comma-separated list of compiler definitions"
+    )
+    parser.add_argument(
+        "--extra-packages",
+        type=str,
+        help="Comma-separated list of extra packages to install",
+    )
+    parser.add_argument(
+        "--add-extra-esp32-libs",
+        action="store_true",
+        help="Add extra libraries to the libraries list to check against compiler errors.",
+    )
+    parser.add_argument(
+        "--build-dir", type=str, help="Override the default build directory"
+    )
+    parser.add_argument(
+        "--no-project-options",
+        action="store_true",
+        help="Don't use custom project options",
+    )
+    parser.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Enable interactive mode to choose a board",
+    )
+    # Passed by the github action to disable interactive mode.
+    parser.add_argument(
+        "--no-interactive", action="store_true", help="Disable interactive mode"
+    )
+    parser.add_argument(
+        "-v", "--verbose", action="store_true", help="Enable verbose output"
+    )
+    parser.add_argument(
+        "--supported-boards",
+        action="store_true",
+        help="Print the list of supported boards and exit",
+    )
+    args, unknown = parser.parse_known_args()
+    if unknown:
+        warnings.warn(f"Unknown arguments: {unknown}")
+    # if --interactive and --no-interative are both passed, --no-interactive takes precedence.
+    if args.interactive and args.no_interactive:
+        warnings.warn(
+            "Both --interactive and --no-interactive were passed, --no-interactive takes precedence."
+        )
+        args.interactive = False
+    return args
+
+
+def remove_duplicates(items: list[str]) -> list[str]:
+    seen = set()
+    out = []
+    for item in items:
+        if item not in seen:
+            seen.add(item)
+            out.append(item)
+    return out
+
+
+def choose_board_interactively(boards: list[str]) -> list[str]:
+    print("Available boards:")
+    boards = remove_duplicates(sorted(boards))
+    for i, board in enumerate(boards):
+        print(f"[{i}]: {board}")
+    print("[all]: All boards")
+    out: list[str] = []
+    while True:
+        try:
+            # choice = int(input("Enter the number of the board(s) you want to compile to: "))
+            input_str = input(
+                "Enter the number of the board(s) you want to compile to, or it's name(s): "
+            )
+            if "all" in input_str:
+                return boards
+            for board in input_str.split(","):
+                if board == "":
+                    continue
+                if not board.isdigit():
+                    out.append(board)  # Assume it's a board name.
+                else:
+                    index = int(board)  # Find the board from the index.
+                    if 0 <= index < len(boards):
+                        out.append(boards[index])
+                    else:
+                        warnings.warn(f"invalid board index: {index}, skipping")
+            if not out:
+                print("Please try again.")
+                continue
+            return out
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+
+
+def resolve_example_path(example: str) -> Path:
+    example_path = HERE.parent / "examples" / example
+    if not example_path.exists():
+        raise FileNotFoundError(f"Example '{example}' not found at '{example_path}'")
+    return example_path
+
+
+def create_concurrent_run_args(args: argparse.Namespace) -> ConcurrentRunArgs:
+    skip_init = args.skip_init
+    if args.interactive:
+        boards = choose_board_interactively(DEFAULT_BOARDS_NAMES + OTHER_BOARDS_NAMES)
+    else:
+        boards = args.boards.split(",") if args.boards else DEFAULT_BOARDS_NAMES
+    projects: list[Board] = []
+    for board in boards:
+        projects.append(get_board(board, no_project_options=args.no_project_options))
+    examples = args.examples.split(",") if args.examples else DEFAULT_EXAMPLES
+    examples_paths = [resolve_example_path(example) for example in examples]
+    defines: list[str] = []
+    if args.defines:
+        defines.extend(args.defines.split(","))
+    extra_packages: list[str] = []
+    if args.extra_packages:
+        extra_packages.extend(args.extra_packages.split(","))
+    build_dir = args.build_dir
+    extra_scripts = "pre:lib/ci/ci-flags.py"
+    verbose = args.verbose
+    out: ConcurrentRunArgs = ConcurrentRunArgs(
+        projects=projects,
+        examples=examples_paths,
+        skip_init=skip_init,
+        defines=defines,
+        extra_packages=extra_packages,
+        libs=LIBS,
+        build_dir=build_dir,
+        extra_scripts=extra_scripts,
+        cwd=str(HERE.parent),
+        board_dir=(HERE / "boards").absolute().as_posix(),
+        build_flags=BUILD_FLAGS,
+        verbose=verbose,
+    )
+    return out
 
 
 def main() -> int:
     """Main function."""
     args = parse_args()
+    if args.supported_boards:
+        print(",".join(DEFAULT_BOARDS_NAMES))
+        return 0
+    if args.add_extra_esp32_libs:
+        LIBS.extend(EXTRA_LIBS)
+
     # Set the working directory to the script's parent directory.
-    script_dir = Path(__file__).parent.resolve()
-    locked_print(f"Changing working directory to {script_dir.parent}")
-    os.chdir(script_dir.parent)
-    os.environ["PLATFORMIO_EXTRA_SCRIPTS"] = "pre:lib/ci/ci-flags.py"
-
-    boards = args.boards.split(',') if args.boards else BOARDS
-    examples = args.examples.split(',') if args.examples else EXAMPLES
-
-    invalid_boards = set(boards) - set(BOARDS)
-    invalid_examples = set(examples) - set(EXAMPLES)
-    
-    if invalid_boards:
-        locked_print(f"Error: Invalid boards specified: {', '.join(invalid_boards)}")
-    if invalid_examples:
-        locked_print(f"Error: Invalid examples specified: {', '.join(invalid_examples)}")
-
-    return run(boards, examples)
-
+    run_args = create_concurrent_run_args(args)
+    start_time = time.time()
+    rtn = concurrent_run(args=run_args)
+    time_taken = time.strftime("%Mm:%Ss", time.gmtime(time.time() - start_time))
+    locked_print(f"Compilation finished in {time_taken}.")
+    return rtn
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(1)

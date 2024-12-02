@@ -1,6 +1,26 @@
 
+FastLED 3.9.4
+=============
+* Fixes some name collisions from users including a lot of libraries.
+* Other misc fixes.
+
+
+FastLED 3.9.3
+=============
+* Beta Release 3 for FastLED 4.0.0
+* ESP32C6 now supported with RMT5 driver without workaround. This chip does not use DMA and so must go through the non DMA path for RMT.
+* RMT5 tweaks for ESP32
+  * For non DMA memory boards like the ESP32, ESP32C3, ESP32C6 RMT will now double it's memory but only allow 4 RMT workers.
+  * This was the behavior for the RMT4.X drivers.
+  * This is done to reduce LED corruption when WIFI is enabled.
+* WS2812 now allows user overrides of it's timing values T1, T2, T3. This is to help debug timing issues on the new V5B of
+  this chipset. You can define FASTLED_WS2812_T1, FASTLED_WS2812_T2, FASTLED_WS2812_T3 before you include FastLED.
+
 FastLED 3.9.2
 =============
+* Beta release 2 for FastLED 4.0.0
+  * In this version we introduce the pre-release of our WS2812 overclocking
+  * We have compile fixes for 3.9.X
 * WS28XX family of led chipsets can now be overclocked
   * See also define `FASTLED_LED_OVERCLOCK`
     * Example: `#define FASTLED_OVERCLOCK 1.2` (gives 20% overclock).
@@ -23,6 +43,15 @@ FastLED 3.9.2
         * 3.9.2: 70fps @ 20% overclock (after this the CPU becomes the bottleneck).
       * FastLED is now likely at the theoretical maximum speed and efficiency for frame draw (async) & dispatch (overclock).
   * Fixes `ESPAsyncWebServer.h` namespace collision with `fs.h` in FastLED, which has been renamed to `file_system.h`
+
+
+Example of how to enable overclocking.
+
+```
+#define FASTLED_OVERCLOCK 1.2 // 20% overclock ~ 960 khz.
+#include "FastLED.h"
+```
+
 
 FastLED 3.9.1
 =============

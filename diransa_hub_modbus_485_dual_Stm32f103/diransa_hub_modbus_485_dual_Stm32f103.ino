@@ -41,25 +41,24 @@ SOFTWARE.
 
 // Master Configuration
 #define MODBUS_SERIAL_MASTER Serial1
-const int8_t dePin_Master = PB12;
-ModbusRTUMaster modbus_master(MODBUS_SERIAL_MASTER, dePin_Master);
+ModbusRTUMaster modbus_master(MODBUS_SERIAL_MASTER);
 #define MODBUS_BAUD_MASTER 9600
 #define MODBUS_CONFIG_MASTER SERIAL_8N1
 
 // Slave Configuration
-HardwareSerial Serial3(PB11, PB10);
-#define MODBUS_SERIAL_SLAVE Serial3
-const int8_t dePin_slave = PB13;
-const int8_t rePin_slave = PB14;
+HardwareSerial Serial2(PA3, PA2);
+#define MODBUS_SERIAL_SLAVE Serial2
 ModbusRTUSlave modbus_slave(MODBUS_SERIAL_SLAVE);
 #define MODBUS_BAUD_SLAVE 9600
 #define MODBUS_CONFIG_SLAVE SERIAL_8N1
-#define MODBUS_SLAVE_ID 1  // ID for SCADA communication 
+#define MODBUS_SLAVE_ID 19  // ID for SCADA communication 
 
 // Modbus Slave Configuration
-const uint8_t NUM_SLAVES = 3;  // Number of Modbus slaves to read from, get the size of list later
+//const uint8_t NUM_SLAVES = 28;
 const uint8_t REGISTERS_PER_SLAVE = 2;  // Number of holding registers to read from each slave
-const uint8_t SLAVE_IDS[] = {2, 3, 4};  // Slave IDs to read from
+const uint8_t SLAVE_IDS[] = {225, 19, 20, 21, 22, 23, 24, 25, 26, 27, 160, 166, 162, 164, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 159, 165, 161, 163};  // Slave IDs to read from
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0])) // Gets the size of the list
+const uint8_t NUM_SLAVES = ARRAY_SIZE(SLAVE_IDS); // Total of id's
 
 // Holding Registers Buffer
 uint16_t holdingRegisters[NUM_SLAVES * REGISTERS_PER_SLAVE];
@@ -105,50 +104,34 @@ void printLog(uint8_t unitId, uint8_t functionCode, uint16_t startingAddress, ui
     Serial.println();
 }
 
-// Read holding registers from all configured slaves
 bool readAllSlaveRegisters() {
-    uint8_t error;
-    uint16_t tempBuffer[REGISTERS_PER_SLAVE];
+    bool allSuccessful = true;
     
     for (uint8_t i = 0; i < NUM_SLAVES; i++) {
-        // Read holding registers from each slave
-        error = modbus_master.readHoldingRegisters(
-            SLAVE_IDS[i],        // Slave ID
-            0,                   // Start address
-            tempBuffer,          // Buffer to store registers
-            REGISTERS_PER_SLAVE  // Number of registers to read
-        );
-        
-        // Check for errors and log them
+        uint8_t error = modbus_master.readHoldingRegisters(SLAVE_IDS[i], 0, holdingRegisters + i*REGISTERS_PER_SLAVE, REGISTERS_PER_SLAVE);
         if (error != 0) {
             printLog(SLAVE_IDS[i], 0x03, 0, REGISTERS_PER_SLAVE, error);
-            return false;
+            allSuccessful = false;
+        } else {
+            printLog(SLAVE_IDS[i], 0x03, 0, REGISTERS_PER_SLAVE, 0);
         }
-        
-        // Copy registers to consolidated buffer
-        memcpy(
-            &holdingRegisters[i * REGISTERS_PER_SLAVE], 
-            tempBuffer, 
-            REGISTERS_PER_SLAVE * sizeof(uint16_t)
-        );
-
-        // Log successful read
-        printLog(SLAVE_IDS[i], 0x03, 0, REGISTERS_PER_SLAVE, 0);
     }
     
-    return true;
+    return allSuccessful;
 }
 
 void setup() {
     // Initialize Serial for debugging
     Serial.begin(115200);
-    while(!Serial);
+    delay(1000);
+    //while(!Serial);
     Serial.println("\n\nModbus RTU Multi-Slave Bridge");
+    Serial.println(NUM_SLAVES);
     
     // Initialize Master Serial and Modbus
     MODBUS_SERIAL_MASTER.begin(MODBUS_BAUD_MASTER, MODBUS_CONFIG_MASTER);
     modbus_master.begin(MODBUS_BAUD_MASTER);
-    //modbus_master.setTimeout(300);
+    //modbus_master.setTimeout(10000);
     
     // Initialize Slave Serial and Modbus
     MODBUS_SERIAL_SLAVE.begin(MODBUS_BAUD_SLAVE, MODBUS_CONFIG_SLAVE);
@@ -159,6 +142,7 @@ void setup() {
 
     // Configure holding registers for slave
     modbus_slave.configureHoldingRegisters(holdingRegisters, numHoldingRegisters);
+    delay(1000);
 }
 
 void loop() {
@@ -169,5 +153,5 @@ void loop() {
     modbus_slave.poll();
     
     // Small delay to prevent overwhelming the bus
-    delay(100);
+    //delay(100);
 }

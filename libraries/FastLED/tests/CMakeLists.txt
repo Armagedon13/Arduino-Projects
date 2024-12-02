@@ -5,6 +5,37 @@
 cmake_minimum_required(VERSION 3.10)
 project(FastLED_Tests)
 
+# Enable parallel compilation
+include(ProcessorCount)
+ProcessorCount(CPU_COUNT)
+if(CPU_COUNT)
+    set(CMAKE_BUILD_PARALLEL_LEVEL ${CPU_COUNT})
+endif()
+
+# Check if mold linker is available
+find_program(MOLD_EXECUTABLE mold)
+
+if(MOLD_EXECUTABLE)
+    # Set mold as the default linker
+    message(STATUS "Using mold linker: ${MOLD_EXECUTABLE}")
+    
+    # Add mold linker flags to the common flags
+    list(APPEND COMMON_COMPILE_FLAGS "-fuse-ld=mold")
+    
+    # Set linker flags globally
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=mold")
+    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fuse-ld=mold")
+    set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -fuse-ld=mold")
+else()
+    find_program(LLDLINK_EXECUTABLE lld-link)
+    if(LLDLINK_EXECUTABLE)
+        message(STATUS "Using lld-link linker: ${LLDLINK_EXECUTABLE}")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fuse-ld=lld")
+    else()
+        message(STATUS "Neither mold nor lld-link found. Using system default linker.")
+    endif()
+endif()
+
 # Set build type to Debug
 set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build." FORCE)
 
@@ -51,7 +82,120 @@ include_directories(${FASTLED_SOURCE_DIR}/src)
 # Find all FastLED source files
 file(GLOB_RECURSE FASTLED_SOURCES 
     "${FASTLED_SOURCE_DIR}/src/*.cpp"
+    "${FASTLED_SOURCE_DIR}/src/fx/*.cpp"
+    "${FASTLED_SOURCE_DIR}/src/platforms/*.cpp"
+    "${FASTLED_SOURCE_DIR}/src/lib8tion/*.cpp"
+    "${FASTLED_SOURCE_DIR}/src/fl/*.cpp"
 )
+
+#message(STATUS "Found FastLED sources: ${FASTLED_SOURCES}")
+
+# Group sources by directory
+set(FX_SOURCES "")
+set(PLATFORMS_SOURCES "")
+set(LIB8TION_SOURCES "")
+set(FL_SOURCES "")
+set(OTHER_SOURCES "")
+
+# Categorize each source file
+foreach(SOURCE ${FASTLED_SOURCES})
+    if(SOURCE MATCHES "/fx/")
+        list(APPEND FX_SOURCES ${SOURCE})
+    elseif(SOURCE MATCHES "/platforms/")
+        list(APPEND PLATFORMS_SOURCES ${SOURCE})
+    elseif(SOURCE MATCHES "/lib8tion/")
+        list(APPEND LIB8TION_SOURCES ${SOURCE})
+    elseif(SOURCE MATCHES "/fl/")
+        list(APPEND FL_SOURCES ${SOURCE})
+    else()
+        list(APPEND OTHER_SOURCES ${SOURCE})
+    endif()
+endforeach()
+
+# Debug output for source categorization
+#message(STATUS "FX Sources: ${FX_SOURCES}")
+#message(STATUS "Platforms Sources: ${PLATFORMS_SOURCES}")
+#message(STATUS "Lib8tion Sources: ${LIB8TION_SOURCES}")
+#message(STATUS "FL Sources: ${FL_SOURCES}")
+#message(STATUS "Other Sources: ${OTHER_SOURCES}")
+
+# Create core library with essential components
+file(GLOB CORE_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/../src/*.cpp")
+
+add_library(FastLED_core OBJECT ${CORE_SOURCES})
+set_target_properties(FastLED_core PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON
+)
+target_compile_options(FastLED_core PRIVATE ${COMMON_COMPILE_FLAGS})
+target_compile_definitions(FastLED_core PRIVATE ${COMMON_COMPILE_DEFINITIONS})
+
+# Create component libraries as OBJECT libraries
+if(FX_SOURCES)
+    add_library(FastLED_fx OBJECT ${FX_SOURCES})
+    set_target_properties(FastLED_fx PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+        POSITION_INDEPENDENT_CODE ON
+    )
+    target_compile_options(FastLED_fx PRIVATE ${COMMON_COMPILE_FLAGS})
+    target_compile_definitions(FastLED_fx PRIVATE ${COMMON_COMPILE_DEFINITIONS})
+endif()
+
+if(PLATFORMS_SOURCES)
+    add_library(FastLED_platforms OBJECT ${PLATFORMS_SOURCES})
+    set_target_properties(FastLED_platforms PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+        POSITION_INDEPENDENT_CODE ON
+    )
+    target_compile_options(FastLED_platforms PRIVATE ${COMMON_COMPILE_FLAGS})
+    target_compile_definitions(FastLED_platforms PRIVATE ${COMMON_COMPILE_DEFINITIONS})
+endif()
+
+if(LIB8TION_SOURCES)
+    add_library(FastLED_lib8tion OBJECT ${LIB8TION_SOURCES})
+    set_target_properties(FastLED_lib8tion PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+        POSITION_INDEPENDENT_CODE ON
+    )
+    target_compile_options(FastLED_lib8tion PRIVATE ${COMMON_COMPILE_FLAGS})
+    target_compile_definitions(FastLED_lib8tion PRIVATE ${COMMON_COMPILE_DEFINITIONS})
+endif()
+
+if(FL_SOURCES)
+    add_library(FastLED_fl OBJECT ${FL_SOURCES})
+    set_target_properties(FastLED_fl PROPERTIES
+        CXX_STANDARD 17
+        CXX_STANDARD_REQUIRED ON
+        POSITION_INDEPENDENT_CODE ON
+    )
+    target_compile_options(FastLED_fl PRIVATE ${COMMON_COMPILE_FLAGS})
+    target_compile_definitions(FastLED_fl PRIVATE ${COMMON_COMPILE_DEFINITIONS})
+endif()
+
+# Create the main FastLED static library that includes all components
+add_library(FastLED STATIC 
+    $<TARGET_OBJECTS:FastLED_core>
+    $<$<TARGET_EXISTS:FastLED_fx>:$<TARGET_OBJECTS:FastLED_fx>>
+    $<$<TARGET_EXISTS:FastLED_platforms>:$<TARGET_OBJECTS:FastLED_platforms>>
+    $<$<TARGET_EXISTS:FastLED_lib8tion>:$<TARGET_OBJECTS:FastLED_lib8tion>>
+    $<$<TARGET_EXISTS:FastLED_fl>:$<TARGET_OBJECTS:FastLED_fl>>
+)
+
+# Set properties for the main library
+set_target_properties(FastLED PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+    POSITION_INDEPENDENT_CODE ON
+)
+target_compile_options(FastLED PRIVATE ${COMMON_COMPILE_FLAGS})
+target_compile_definitions(FastLED PRIVATE ${COMMON_COMPILE_DEFINITIONS})
+if(NOT APPLE)
+    target_link_options(FastLED PRIVATE -static-libgcc -static-libstdc++)
+endif()
 
 # Try to find libunwind, but make it optional
 find_package(LibUnwind QUIET)
@@ -70,24 +214,23 @@ list(FILTER FASTLED_SOURCES EXCLUDE REGEX ".*esp.*")
 list(FILTER FASTLED_SOURCES EXCLUDE REGEX ".*arm.*")
 list(FILTER FASTLED_SOURCES EXCLUDE REGEX ".*avr.*")
 
-# Create FastLED library
-add_library(FastLED STATIC ${FASTLED_SOURCES})
 
-# Set C++ standard and static linking for FastLED
-set_target_properties(FastLED PROPERTIES
+# Create FastLEDTest with OTHER_SOURCES
+add_library(FastLEDTest OBJECT ${OTHER_SOURCES})
+
+# Set C++ standard and shared library properties for FastLEDTest
+set_target_properties(FastLEDTest PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
     POSITION_INDEPENDENT_CODE ON
 )
 
-# Add static linking flags and debug flags for FastLED
-if(NOT APPLE)
-    target_link_options(FastLED PRIVATE -static-libgcc -static-libstdc++)
-endif()
+# Add custom build flags for FastLEDTest
+target_compile_options(FastLEDTest PRIVATE ${COMMON_COMPILE_FLAGS})
+target_compile_definitions(FastLEDTest PRIVATE ${COMMON_COMPILE_DEFINITIONS})
 
-# Add custom build flags for FastLED
-target_compile_options(FastLED PRIVATE ${COMMON_COMPILE_FLAGS})
-target_compile_definitions(FastLED PRIVATE ${COMMON_COMPILE_DEFINITIONS})
+# Add FastLEDTest objects to main FastLED library
+target_sources(FastLED PRIVATE $<TARGET_OBJECTS:FastLEDTest>)
 
 if(USE_LIBUNWIND)
     target_link_libraries(FastLED PRIVATE ${LIBUNWIND_LIBRARIES})
@@ -99,7 +242,7 @@ enable_testing()
 # Find all test source files
 file(GLOB TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp")
 
-# Find all test binaries
+# Find test executables (only actual test executables, not libraries)
 file(GLOB TEST_BINARIES "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/test_*${CMAKE_EXECUTABLE_SUFFIX}")
 
 # Process source files
@@ -123,21 +266,6 @@ foreach(TEST_SOURCE ${TEST_SOURCES})
     target_compile_definitions(${TEST_NAME} PRIVATE 
         ${COMMON_COMPILE_DEFINITIONS}
         $<$<BOOL:${USE_LIBUNWIND}>:USE_LIBUNWIND>
-    )
-    
-    # Create a custom command to build the test only if source or FastLED library changes
-    add_custom_command(
-        OUTPUT ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${TEST_NAME}
-        COMMAND ${CMAKE_COMMAND} --build . --target ${TEST_NAME}
-        DEPENDS ${TEST_SOURCE} FastLED
-        COMMENT "Building ${TEST_NAME}"
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    )
-    
-    # Create a custom target that depends on the custom command
-    add_custom_target(
-        ${TEST_NAME}_target ALL
-        DEPENDS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${TEST_NAME}
     )
     
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})

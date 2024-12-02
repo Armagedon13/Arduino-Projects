@@ -98,6 +98,7 @@ async function initThreeJS(threeJsModules, containerId) {
     }
 
     let camera, stats;
+    console.log("Initializing ThreeJS...");
     let composer, renderer, mixer, clock;
 
     const params = {
@@ -114,14 +115,24 @@ async function initThreeJS(threeJsModules, containerId) {
         clock = new THREE.Clock();
         const scene = new THREE.Scene();
 
+        console.log("Creating PerspectiveCamera with parameters:");
+        console.log("Field of View (FOV):", 40);
+        console.log("Aspect Ratio:", window.innerWidth / window.innerHeight);
+        console.log("Near Clipping Plane:", 1);
+        console.log("Far Clipping Plane:", 100);
         camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 100);
         camera.position.set(-5, 2.5, -3.5);
+        console.log("Camera Position - X:", camera.position.x, "Y:", camera.position.y, "Z:", camera.position.z);
         scene.add(camera);
+        console.log("Camera added to scene.");
 
         scene.add(new THREE.AmbientLight(0xcccccc));
+        console.log("Ambient light added to scene.");
 
         const pointLight = new THREE.PointLight(0xffffff, 100);
+        console.log("Point light created with intensity 100.");
         camera.add(pointLight);
+        console.log("Point light added to camera.");
 
         const loader = new GLTFLoader();
         const gltf = await loader.loadAsync('https://threejs.org/examples/models/gltf/PrimaryIonDrive.glb');
@@ -165,14 +176,15 @@ async function initThreeJS(threeJsModules, containerId) {
     }
 
     function onWindowResize() {
-        const width = window.innerWidth;
-        const height = window.innerHeight;
+        const canvas = document.getElementById(this.canvasId);
+        const width = canvas.clientWidth;
+        const height = canvas.clientHeight;
 
-        camera.aspect = width / height;
-        camera.updateProjectionMatrix();
+        this.camera.aspect = width / height;
+        this.camera.updateProjectionMatrix();
 
-        renderer.setSize(width, height);
-        composer.setSize(width, height);
+        this.renderer.setSize(width, height);
+        this.composer.setSize(width, height);
     }
 
     function animate() {
@@ -519,38 +531,43 @@ class GraphicsManagerThreeJS {
     }
 
     initThreeJS(frameData) {
+        const FOV = 45;
+        const margin = 1.05;  // Add a small margin around the screen
+        const RESOLUTION_BOOST = 2;  // 2x resolution for higher quality
+        const MAX_WIDTH = 640;  // Max pixels width on browser.
 
         const { THREE, EffectComposer, RenderPass, UnrealBloomPass } = this.threeJsModules;
         const canvas = document.getElementById(this.canvasId);
+        const screenMap = frameData.screenMap;
+        const screenMapWidth = screenMap.absMax[0] - screenMap.absMin[0];
+        const screenMapHeight = screenMap.absMax[1] - screenMap.absMin[1];
 
         // Always set width to 640px and scale height proportionally
-        const targetWidth = 640;
-        const aspectRatio = canvas.height / canvas.width;
-        const targetHeight = Math.round(targetWidth * aspectRatio);
+        const targetWidth = MAX_WIDTH;
+        const aspectRatio = screenMapWidth / screenMapHeight;
+        const targetHeight = Math.round(targetWidth / aspectRatio);
 
         // Set the rendering resolution (2x the display size)
-        this.SCREEN_WIDTH = targetWidth * 2;
-        this.SCREEN_HEIGHT = targetHeight * 2;
+        this.SCREEN_WIDTH = targetWidth * RESOLUTION_BOOST;
+        this.SCREEN_HEIGHT = targetHeight * RESOLUTION_BOOST;
 
         // Set internal canvas size to 2x for higher resolution
-        canvas.width = targetWidth * 2;
-        canvas.height = targetHeight * 2;
+        canvas.width = targetWidth * RESOLUTION_BOOST;
+        canvas.height = targetHeight * RESOLUTION_BOOST;
         // But keep display size the same
         canvas.style.width = targetWidth + 'px';
         canvas.style.height = targetHeight + 'px';
         canvas.style.maxWidth = targetWidth + 'px';
         canvas.style.maxHeight = targetHeight + 'px';
+        const circleRadius = Math.max(this.SCREEN_WIDTH, this.SCREEN_HEIGHT) * 0.5;
+        const cameraZ = circleRadius / Math.tan(THREE.MathUtils.degToRad(FOV / 2)) * margin;
 
         this.scene = new THREE.Scene();
-        const margin = 1.05;  // Add a small margin around the screen
+
         // Use perspective camera with narrower FOV for less distortion
-        // BIG TODO: This camera setup does not respond to z-position changes. Eventually
-        // we we want to have a camera that shows leds closer to the screen as larger.
-        const fov = 45;
-        const aspect = this.SCREEN_WIDTH / this.SCREEN_HEIGHT;
-        this.camera = new THREE.PerspectiveCamera(fov, aspect, 0.1, 2000);
-        // Position camera closer to fill more of the screen
-        this.camera.position.z = Math.max(this.SCREEN_WIDTH, this.SCREEN_HEIGHT) * margin;
+        this.camera = new THREE.PerspectiveCamera(FOV, aspectRatio, 0.1, 5000);
+        // Adjust camera position to ensure the circle fits within the view
+        this.camera.position.z = cameraZ;
         this.camera.position.y = 0;
 
         this.renderer = new THREE.WebGLRenderer({
@@ -558,7 +575,6 @@ class GraphicsManagerThreeJS {
             antialias: true
         });
         this.renderer.setSize(this.SCREEN_WIDTH, this.SCREEN_HEIGHT);
-
         const renderScene = new RenderPass(this.scene, this.camera);
         this.composer = new EffectComposer(this.renderer);
         this.composer.addPass(renderScene);
@@ -825,6 +841,16 @@ class UiManager {
                 console.log(`Group ${group} found, for item ${data.name}`);
             }
 
+            if (data.type === 'title') {
+                this.setTitle(data);
+                return; // Skip creating UI control for title
+            }
+
+            if (data.type === 'description') {
+                this.setDescription(data);
+                return; // Skip creating UI control for description
+            }
+
             let control;
             if (data.type === 'slider') {
                 control = this.createSlider(data);
@@ -859,6 +885,42 @@ class UiManager {
             error('UI controls container not found in the HTML');
         }
         return container;
+    }
+
+    setTitle(titleData) {
+        if (titleData && titleData.text) {
+            document.title = titleData.text;
+            const h1Element = document.querySelector('h1');
+            if (h1Element) {
+                h1Element.textContent = titleData.text;
+            } else {
+                console.warn("H1 element not found in document");
+            }
+        } else {
+            console.warn("Invalid title data received:", titleData);
+        }
+    }
+
+    setDescription(descData) {
+        if (descData && descData.text) {
+            // Create or find description element
+            let descElement = document.querySelector('#fastled-description');
+            if (!descElement) {
+                descElement = document.createElement('div');
+                descElement.id = 'fastled-description';
+                // Insert after h1
+                const h1Element = document.querySelector('h1');
+                if (h1Element && h1Element.nextSibling) {
+                    h1Element.parentNode.insertBefore(descElement, h1Element.nextSibling);
+                } else {
+                    console.warn("Could not find h1 element to insert description after");
+                    document.body.insertBefore(descElement, document.body.firstChild);
+                }
+            }
+            descElement.textContent = descData.text;
+        } else {
+            console.warn("Invalid description data received:", descData);
+        }
     }
 
     createNumberField(element) {
@@ -991,6 +1053,8 @@ class UiManager {
     // to a screen pixel with xy.
     let screenMap = {
         strips: {},
+        absMin: [0, 0],
+        absMax: [0, 0]
     };
     let canvasId;
     let uiControlsId;

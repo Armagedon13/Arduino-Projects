@@ -5,6 +5,7 @@
 #include "platforms/ui_defs.h"
 #include "namespace.h"
 #include "math_macros.h"
+#include "template_magic.h"
 
 #ifndef FASTLED_HAS_UI_SLIDER
 #define FASTLED_HAS_UI_SLIDER 0
@@ -22,6 +23,14 @@
 #define FASTLED_HAS_UI_NUMBER_FIELD 0
 #endif
 
+#ifndef FASTLED_HAS_UI_TITLE
+#define FASTLED_HAS_UI_TITLE 0
+#endif
+
+#ifndef FASTLED_HAS_UI_DESCRIPTION
+#define FASTLED_HAS_UI_DESCRIPTION 0
+#endif
+
 FASTLED_NAMESPACE_BEGIN
 
 
@@ -32,7 +41,7 @@ FASTLED_NAMESPACE_BEGIN
 class Slider {
   public:
     Slider(const char *name, float value = 128.0f, float min = 1, float max = 255, float step = 1)
-      : mValue(value), mMin(MIN(min, max)), mMax(MAX(min, max)), mStep(step) {}
+      : mValue(value), mMin(MIN(min, max)), mMax(MAX(min, max)) {}
     ~Slider() {}
     float value() const { return mValue; }
     void setValue(float value) { mValue = MAX(mMin, MIN(mMax, value)); }
@@ -48,7 +57,6 @@ class Slider {
     float mValue;
     float mMin;
     float mMax;
-    float mStep;
 };
 
 
@@ -109,23 +117,40 @@ class NumberField {
 
 #endif
 
+#if !FASTLED_HAS_UI_TITLE
+
+
+class Title {
+  public:
+    Title(const char *name) {}
+    ~Title() {}
+};
+
+#endif
+
+#if !FASTLED_HAS_UI_DESCRIPTION
+
+class Description {
+  public:
+    Description(const char *name) {}
+    ~Description() {}
+};
+
+#endif
+
+
 #define FASTLED_UI_DEFINE_OPERATORS(UI_CLASS) \
-template <typename T> bool operator>= (T v, const UI_CLASS& ui) { return ui >= v; } \
-template <typename T> bool operator<= (T v, const UI_CLASS& ui) { return ui <= v; } \
-template <typename T> bool operator> (T v, const UI_CLASS& ui) { return ui > v; } \
-template <typename T> bool operator< (T v, const UI_CLASS& ui) { return ui < v; } \
-template <typename T> bool operator== (T v, const UI_CLASS& ui) { return ui == v; } \
-template <typename T> bool operator!= (T v, const UI_CLASS& ui) { return ui != v; } \
-template <typename T> bool operator>=(const UI_CLASS& ui, T v) { return ui >= v; }  \
-template <typename T> bool operator<=(const UI_CLASS& ui, T v) { return ui <= v; } \
-template <typename T> bool operator>(const UI_CLASS& ui, T v) { return ui > v; } \
-template <typename T> bool operator<(const UI_CLASS& ui, T v) { return ui < v; } \
-template <typename T> bool operator==(const UI_CLASS& ui, T v) { return ui == v; } \
-template <typename T> bool operator!=(const UI_CLASS& ui, T v) { return ui != v; }
+FASTLED_DEFINE_POD_COMPARISON_OPERATOR(UI_CLASS, >=) \
+FASTLED_DEFINE_POD_COMPARISON_OPERATOR(UI_CLASS, <=) \
+FASTLED_DEFINE_POD_COMPARISON_OPERATOR(UI_CLASS, >)  \
+FASTLED_DEFINE_POD_COMPARISON_OPERATOR(UI_CLASS, <)  \
+FASTLED_DEFINE_POD_COMPARISON_OPERATOR(UI_CLASS, ==) \
+FASTLED_DEFINE_POD_COMPARISON_OPERATOR(UI_CLASS, !=)
 
 FASTLED_UI_DEFINE_OPERATORS(Slider);
 FASTLED_UI_DEFINE_OPERATORS(NumberField);
 FASTLED_UI_DEFINE_OPERATORS(Checkbox);
 FASTLED_UI_DEFINE_OPERATORS(Button);
+
 
 FASTLED_NAMESPACE_END

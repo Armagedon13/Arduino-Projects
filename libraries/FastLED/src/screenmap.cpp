@@ -6,20 +6,40 @@
 
 #include "screenmap.h"
 
-#include "str.h"
+#include "fl/str.h"
 #include "fixed_map.h"
 #include "json.h"
 #include "namespace.h"
 #include "fixed_vector.h"
+#include "math_macros.h"
+#include "math.h"
+
+using namespace fl;
+
+
 
 FASTLED_NAMESPACE_BEGIN
 
+ScreenMap ScreenMap::Circle(int numLeds, float cm_between_leds, float cm_led_diameter) {
+    ScreenMap screenMap = ScreenMap(numLeds);
+    float circumference = numLeds * cm_between_leds;
+    float radius = circumference / (2 * PI);
+
+    for (int i = 0; i < numLeds; i++) {
+        float angle = i * 2 * PI / numLeds;
+        float x = radius * cos(angle) * 2;
+        float y = radius * sin(angle) * 2;
+        screenMap[i] = {x, y};
+    }
+    screenMap.setDiameter(cm_led_diameter);
+    return screenMap;
+}
 
 
-void ScreenMap::ParseJson(const char *jsonStrOfMapFile,
+void ScreenMap::ParseJson(const char *jsonStrScreenMap,
                           FixedMap<Str, ScreenMap, 16> *segmentMaps) {
     FLArduinoJson::JsonDocument doc;
-    FLArduinoJson::deserializeJson(doc, jsonStrOfMapFile);
+    FLArduinoJson::deserializeJson(doc, jsonStrScreenMap);
     auto map = doc["map"];
     for (auto kv : map.as<FLArduinoJson::JsonObject>()) {
         auto segment = kv.value();
@@ -55,6 +75,9 @@ void ScreenMap::toJson(const FixedMap<Str, ScreenMap, 16>& segmentMaps, FLArduin
             y_array.add(xy.y);
         }
         float diameter = kv.second.getDiameter();
+        if (diameter < 0.0f) {
+            diameter = .5f; // 5mm.
+        }
         if (diameter > 0.0f) {
             segment["diameter"] = diameter;
         }
@@ -66,5 +89,7 @@ void ScreenMap::toJsonStr(const FixedMap<Str, ScreenMap, 16>& segmentMaps, Str* 
     toJson(segmentMaps, &doc);
     FLArduinoJson::serializeJson(doc, *jsonBuffer);
 }
+
+
 
 FASTLED_NAMESPACE_END

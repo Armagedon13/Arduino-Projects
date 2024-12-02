@@ -7,33 +7,35 @@
 
 #include "namespace.h"
 #include "ref.h"
-
+#include "fx/video.h"
 
 FASTLED_NAMESPACE_BEGIN
 
 FASTLED_SMART_REF(FsImpl);
+
+// Platforms need to implement this to create an instance of the filesystem.
+FsImplRef make_sdcard_filesystem(int cs_pin);
+
 FASTLED_SMART_REF(FileHandle);
+class Video;
 
 // Instantiate this with a pin number to create a filesystem.
-class Fs {
+class FileSystem {
   public:
-    Fs(int cs_pin);  // Initializes this as a spi sd card file system.
-    Fs(FsImplRef fs);  // Use this to provide a custom filesystem.
-    bool begin(); // Signal to begin using the filesystem resource.
+    FileSystem();
+    bool beginSd(int cs_pin); // Signal to begin using the filesystem resource.
+    bool begin(FsImplRef platform_filesystem); // Signal to begin using the filesystem resource.
     void end(); // Signal to end use of the file system.
+
     
     FileHandleRef openRead(const char *path);  // Null if file could not be opened.
+    Video openVideo(const char *path, size_t pixelsPerFrame, float fps = 30.0f, size_t nFrameHistory = 0);  // Null if video could not be opened.
     void close(FileHandleRef file);
     
   private:
     FsImplRef mFs;  // System dependent filesystem.
 };
 
-
-/// Implementation details
-
-// Platforms eed to implement this to create an instance of the filesystem.
-FsImplRef make_filesystem(int cs_pin);
 
 
 // An abstract class that represents a file handle.
@@ -51,8 +53,7 @@ class FileHandle: public Referent {
     virtual void close() = 0;
 };
 
-// A filesystem interface that abstracts the underlying filesystem, usually
-// an sd card.
+// Platforms will subclass this to implement the filesystem.
 class FsImpl : public Referent {
   public:
     struct Visitor {
@@ -68,10 +69,9 @@ class FsImpl : public Referent {
 
     virtual bool ls(Visitor &visitor) {
       // todo: implement.
+      (void)visitor;
       return false;
     }
 };
-
-
 
 FASTLED_NAMESPACE_END

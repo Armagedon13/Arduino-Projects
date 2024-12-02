@@ -14,4 +14,8 @@ void on_startup() {
 
 #endif  // ESP32
 
-#include "ANIMartRIX.hpp"
+#include "FastLED.h"
+
+using namespace fl;
+
+#include "NoiseRing.hpp"

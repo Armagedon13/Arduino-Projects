@@ -15,6 +15,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "crgb.h"
 #include "namespace.h"
 FASTLED_USING_NAMESPACE
 
@@ -109,7 +110,7 @@ void problematic_test(CRGB color, uint8_t brightness) {
     std::ostringstream oss;
 
     // print out the power
-    oss << "" << std::endl;
+    oss << std::endl;
     oss << "power: " << p.power << " power_5bit: " << p.power_5bit << " power_5bit_u8: " << int(p.power_5bit_u8) << std::endl;
     oss << "brightness: " << int(brightness) << " color: R: " << int(color.r) << " G: " << int(color.g) << " B: " << int(color.b) << std::endl;
     oss << "compute_power_5bit: " << compute_power_5bit(color, p.power_5bit_u8, brightness) << std::endl;
@@ -139,7 +140,6 @@ TEST_CASE("five_bit_hd_gamma_bitshift functionality") {
 #if STRESS_TEST
   SUBCASE("Randomized Power Matching Test for 5 bit power") {
     srand(0);  // Seed the random number generator so we get consitent results.
-    bool fail = false;
     std::vector<Data> failures;
     for (int i = 0; i < NUM_TESTS; i++) {
       CRGB color;

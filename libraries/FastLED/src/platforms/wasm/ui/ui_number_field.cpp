@@ -10,11 +10,12 @@
 #include "ui_manager.h"
 #include "math_macros.h"
 
+using namespace fl;
 
 FASTLED_NAMESPACE_BEGIN
 
 
-jsNumberField::jsNumberField(const char* name, double value, double min, double max)
+jsNumberField::jsNumberField(const Str& name, double value, double min, double max)
     : mValue(value), mMin(min), mMax(max) {
     auto updateFunc = jsUiInternal::UpdateFunction(this, [](void* self, const FLArduinoJson::JsonVariantConst& json) {
         static_cast<jsNumberField*>(self)->updateInternal(json);
@@ -30,7 +31,7 @@ jsNumberField::~jsNumberField() {
     jsUiManager::removeComponent(mInternal);
 }
 
-const char* jsNumberField::name() const {
+const Str& jsNumberField::name() const {
     return mInternal->name();
 }
 

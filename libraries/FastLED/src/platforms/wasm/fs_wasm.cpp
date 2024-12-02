@@ -19,10 +19,11 @@
 #include "math_macros.h"
 #include "namespace.h"
 #include "ref.h"
-#include "str.h"
+#include "fl/str.h"
 #include "json.h"
 #include "warn.h"
 
+using namespace fl;
 
 FASTLED_NAMESPACE_BEGIN
 
@@ -55,8 +56,9 @@ class FileData : public Referent {
         }
         size_t bytesAvailable = mData.size() - pos;
         size_t bytesToActuallyRead = MIN(len, bytesAvailable);
-        std::copy(mData.begin() + pos, mData.begin() + pos + bytesToActuallyRead,
-                  dst);
+        auto begin_it = mData.begin() + pos;
+        auto end_it = begin_it + bytesToActuallyRead;
+        std::copy(begin_it, end_it, dst);
         return bytesToActuallyRead;
     }
 
@@ -96,7 +98,9 @@ class WasmFileHandle : public FileHandle {
     size_t size() const override { return mData->capacity(); }
 
     size_t read(uint8_t *dst, size_t bytesToRead) override {
-        return mData->read(mPos, dst, bytesToRead);
+        size_t bytesRead = mData->read(mPos, dst, bytesToRead);
+        mPos += bytesRead;
+        return bytesRead;
     }
 
     size_t pos() const override { return mPos; }
@@ -140,7 +144,7 @@ class FsImplWasm : public FsImpl {
 };
 
 // Platforms eed to implement this to create an instance of the filesystem.
-FsImplRef make_filesystem(int cs_pin) { return FsImplWasmRef::New(); }
+FsImplRef make_sdcard_filesystem(int cs_pin) { return FsImplWasmRef::New(); }
 
 
 FileDataRef _findIfExists(const Str& path) {

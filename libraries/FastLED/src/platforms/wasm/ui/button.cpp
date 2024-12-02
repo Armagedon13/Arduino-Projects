@@ -6,9 +6,11 @@
 #include "ui_manager.h"
 #include "namespace.h"
 
+using namespace fl;
+
 FASTLED_NAMESPACE_BEGIN
 
-jsButton::jsButton(const char* name)
+jsButton::jsButton(const Str& name)
     : mPressed(false) {
     auto updateFunc = jsUiInternal::UpdateFunction(this, [](void* self, const FLArduinoJson::JsonVariantConst& value) {
         static_cast<jsButton*>(self)->updateInternal(value);
@@ -26,7 +28,7 @@ jsButton::~jsButton() {
     jsUiManager::removeComponent(mInternal);
 }
 
-const char* jsButton::name() const {
+const Str& jsButton::name() const {
     return mInternal->name();
 }
 

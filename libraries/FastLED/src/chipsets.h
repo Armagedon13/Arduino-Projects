@@ -822,6 +822,11 @@ class UCS1912Controller : public ClocklessController<DATA_PIN, 2 * FMUL, 8 * FMU
 #define FASTLED_LED_OVERCLOCK 1.0
 #endif
 
+// WS2812 can be overclocked pretty aggressively, however, there are
+// some excellent articles that you should read about WS2812 overclocking
+// and corruption for a large number of LEDs.
+// https://wp.josh.com/2014/05/16/why-you-should-give-your-neopixel-bits-room-to-breathe/
+// https://wp.josh.com/2014/05/13/ws2812-neopixels-are-not-so-finicky-once-you-get-to-know-them/
 #ifndef FASTLED_LED_OVERCLOCK_WS2812
 #define FASTLED_LED_OVERCLOCK_WS2812 FASTLED_LED_OVERCLOCK
 #endif
@@ -931,13 +936,33 @@ class WS2811Controller800Khz : public ClocklessController<DATA_PIN, C_NS_WS2811(
 template <uint8_t DATA_PIN, EOrder RGB_ORDER = GRB>
 class WS2813Controller : public ClocklessController<DATA_PIN, C_NS_WS2813(320), C_NS_WS2813(320), C_NS_WS2813(640), RGB_ORDER> {};
 
+#ifndef FASTLED_WS2812_T1
+#define FASTLED_WS2812_T1 250
+#endif
+
+#ifndef FASTLED_WS2812_T2
+#define FASTLED_WS2812_T2 625
+#endif
+
+#ifndef FASTLED_WS2812_T3
+#define FASTLED_WS2812_T3 375
+#endif
+
 // WS2812 - 250ns, 625ns, 375ns
 template <uint8_t DATA_PIN, EOrder RGB_ORDER = GRB>
-class WS2812Controller800Khz : public ClocklessController<DATA_PIN, C_NS_WS2812(250), C_NS_WS2812(625), C_NS_WS2812(375), RGB_ORDER> {};
+class WS2812Controller800Khz : public ClocklessController<
+	DATA_PIN,
+	C_NS_WS2812(FASTLED_WS2812_T1),
+	C_NS_WS2812(FASTLED_WS2812_T2),
+	C_NS_WS2812(FASTLED_WS2812_T3),
+	RGB_ORDER> {};
 
 // WS2811@400khz - 800ns, 800ns, 900ns
 template <uint8_t DATA_PIN, EOrder RGB_ORDER = GRB>
 class WS2811Controller400Khz : public ClocklessController<DATA_PIN, C_NS_WS2811(800), C_NS_WS2811(800), C_NS_WS2811(900), RGB_ORDER> {};
+
+
+
 
 template <uint8_t DATA_PIN, EOrder RGB_ORDER = GRB>
 class WS2815Controller : public ClocklessController<DATA_PIN, C_NS_WS2815(250), C_NS_WS2815(1090), C_NS_WS2815(550), RGB_ORDER> {};

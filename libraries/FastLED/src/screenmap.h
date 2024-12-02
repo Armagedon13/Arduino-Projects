@@ -6,7 +6,7 @@
 #include "lut.h"
 #include "ref.h"
 
-#include "str.h"
+#include "fl/str.h"
 #include "fixed_map.h"
 #include "json.h"
 #include "namespace.h"
@@ -17,17 +17,21 @@
  * the Chromancer project to FastLED.js.
  */
 
-
+namespace fl {
+    class Str;
+}
 
 FASTLED_NAMESPACE_BEGIN
 
-class Str;
 
 // ScreenMap screen map maps strip indexes to x,y coordinates for a ui
 // canvas in float format.
 // This class is cheap to copy as it uses smart pointers for shared data.
 class ScreenMap {
   public:
+
+    static ScreenMap Circle(int numLeds, float cm_between_leds = 1.5f, float cm_led_diameter = 0.5f);
+
     ScreenMap() = default;
 
     // is_reverse is false by default for linear layout
@@ -80,6 +84,17 @@ class ScreenMap {
         }
     }
 
+    pair_xy_float& operator[](uint32_t x) {
+        if (x >= length || !mLookUpTable) {
+            return const_cast<pair_xy_float &>(empty()); // better than crashing.
+        }
+        LUTXYFLOAT &lut = *mLookUpTable.get();
+        auto *data = lut.getData();
+        return data[x];
+    }
+
+    // TODO: change this name to setDiameterLed. Default should be .5f
+    // for 5 mm ws lense.
     void setDiameter(float diameter) { mDiameter = diameter; }
 
     // define the assignment operator
@@ -105,11 +120,11 @@ class ScreenMap {
     // The diameter each point represents.
     float getDiameter() const { return mDiameter; }
 
-    static void ParseJson(const char *jsonStrOfMapFile,
-                          FixedMap<Str, ScreenMap, 16> *segmentMaps);
+    static void ParseJson(const char *jsonStrScreenMap,
+                          FixedMap<fl::Str, ScreenMap, 16> *segmentMaps);
 
-    static void toJsonStr(const FixedMap<Str, ScreenMap, 16>&, Str* jsonBuffer);
-    static void toJson(const FixedMap<Str, ScreenMap, 16>&, FLArduinoJson::JsonDocument* doc);
+    static void toJsonStr(const FixedMap<fl::Str, ScreenMap, 16>&, fl::Str* jsonBuffer);
+    static void toJson(const FixedMap<fl::Str, ScreenMap, 16>&, FLArduinoJson::JsonDocument* doc);
 
   private:
     static const pair_xy_float &empty() {

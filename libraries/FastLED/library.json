@@ -38,7 +38,7 @@
         "type": "git",
         "url": "https://github.com/FastLED/FastLED.git"
     },
-    "version": "3.9.2",
+    "version": "3.9.4",
     "license": "MIT",
     "homepage": "http://fastled.io",
     "frameworks": "arduino",
@@ -66,7 +66,8 @@
             "+<platforms/esp/32/**/*.cpp>",
             "+<platforms/wasm/**/*.cpp>",
             "+<third_party/**/*.cpp>",
-            "+<fx/**/*.cpp>"
+            "+<fx/**/*.cpp>",
+            "+<fl/**/*.cpp>"
         ],
         "libArchive": false
     }

@@ -21,6 +21,7 @@
 #include "fx/2d/video.hpp"
 #include "fx/fx_engine.h"
 #include "ref.h"
+#include "fx/video.h"
 
 #define LED_PIN 2
 #define BRIGHTNESS 96
@@ -33,14 +34,14 @@
 
 CRGB leds[NUM_LEDS];
 
-const int BYTES_PER_FRAME = 3 * MATRIX_WIDTH * MATRIX_HEIGHT;
+const int BYTES_PER_FRAME = 3 * NUM_LEDS;
 const int NUM_FRAMES = 2;
 const uint32_t BUFFER_SIZE = BYTES_PER_FRAME * NUM_FRAMES;
 
 ByteStreamMemoryRef memoryStream;
-VideoRef videoFx;
 FxEngine fxEngine(NUM_LEDS);
-
+// Create and initialize Video fx object
+XYMap xymap(MATRIX_WIDTH, MATRIX_HEIGHT);
 
 void write_one_frame(ByteStreamMemoryRef memoryStream) {
     //memoryStream->seek(0);  // Reset to the beginning of the stream
@@ -58,20 +59,16 @@ void write_one_frame(ByteStreamMemoryRef memoryStream) {
 void setup() {
     delay(1000); // sanity delay
     FastLED.addLeds<LED_TYPE, LED_PIN, COLOR_ORDER>(leds, NUM_LEDS)
-        .setCorrection(TypicalLEDStrip);
+        .setCorrection(TypicalLEDStrip)
+        .setScreenMap(xymap);
     FastLED.setBrightness(BRIGHTNESS);
 
     // Create and fill the ByteStreamMemory with test data
     memoryStream = ByteStreamMemoryRef::New(BUFFER_SIZE);
     write_one_frame(memoryStream);  // Write initial frame data
-
-    // Create and initialize Video fx object
-    XYMap xymap(MATRIX_WIDTH, MATRIX_HEIGHT);
-    videoFx = VideoRef::New(xymap);
-    videoFx->beginStream(memoryStream);
-
+    Video video(memoryStream, NUM_LEDS, 30.0f, 0);
     // Add the video effect to the FxEngine
-    fxEngine.addFx(videoFx);
+    fxEngine.addVideo(video, xymap);
 }
 
 void loop() {

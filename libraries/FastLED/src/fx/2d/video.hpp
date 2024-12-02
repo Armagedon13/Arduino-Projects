@@ -10,67 +10,15 @@
 
 FASTLED_NAMESPACE_BEGIN
 
-FASTLED_SMART_REF(Video);
+
+
 FASTLED_SMART_REF(VideoFx);
 
-class Video : public FxGrid {
-  public:
-    Video(XYMap xymap) : FxGrid(xymap) {}
-
-    void lazyInit() override {
-        if (!mInitialized) {
-            mInitialized = true;
-            // Initialize video stream here if needed
-        }
-    }
-
-    bool begin(FileHandleRef fileHandle) {
-        const uint8_t bytes_per_frame = getXYMap().getTotal() * 3;
-        mDataStream = DataStreamRef::New(bytes_per_frame);
-        return mDataStream->begin(fileHandle);
-    }
-
-    bool beginStream(ByteStreamRef byteStream) {
-        const uint8_t bytes_per_frame = getXYMap().getTotal() * 3;
-        mDataStream = DataStreamRef::New(bytes_per_frame);
-        return mDataStream->beginStream(byteStream);
-    }
-
-    void close() { mDataStream->Close(); }
-
-    void draw(DrawContext context) override {
-        if (!mDataStream || !mDataStream->FramesRemaining()) {
-            if (mDataStream && mDataStream->getType() != DataStream::kStreaming) {
-                mDataStream->Rewind();
-            } else {
-                return; // Can't draw or rewind
-            }
-        }
-
-        if (!mDataStream->available()) {
-            return; // No data available
-        }
-
-        for (uint16_t w = 0; w < mXyMap.getWidth(); w++) {
-            for (uint16_t h = 0; h < mXyMap.getHeight(); h++) {
-                CRGB pixel;
-                if (mDataStream->ReadPixel(&pixel)) {
-                    context.leds[mXyMap.mapToIndex(w, h)] = pixel;
-                } else {
-                    context.leds[mXyMap.mapToIndex(w, h)] = CRGB::Black;
-                }
-            }
-        }
-    }
 
 
+#if 0
 
-    const char *fxName(int) const override { return "video"; }
-
-  private:
-    DataStreamRef mDataStream;
-    bool mInitialized = false;
-};
+FASTLED_SMART_REF(VideoFx);
 
 // Converts a FxGrid to a video effect. This primarily allows for
 // fixed frame rates and frame interpolation.
@@ -103,7 +51,7 @@ class VideoFx : public FxGrid {
         }
 
         uint32_t precise_timestamp;
-        if (mFrameInterpolator->needsRefresh(context.now, &precise_timestamp)) {
+        if (mFrameInterpolator->needsFrame(context.now, &precise_timestamp)) {
             FrameRef frame;
             bool wasFullBeforePop = mFrameInterpolator->full();
             if (wasFullBeforePop) {
@@ -142,5 +90,7 @@ class VideoFx : public FxGrid {
     FrameInterpolatorRef mFrameInterpolator;
     float mFps;
 };
+
+#endif
 
 FASTLED_NAMESPACE_END

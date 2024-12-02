@@ -8,13 +8,16 @@
 #include "xmap.h" // Include xmap.h for LUT16
 #include "lut.h"
 #include "crgb.h"
-#include "screenmap.h"
 #include "namespace.h"
 
 FASTLED_NAMESPACE_BEGIN
 
+class ScreenMap;
+
+
 FASTLED_FORCE_INLINE uint16_t xy_serpentine(uint16_t x, uint16_t y,
                                             uint16_t width, uint16_t height) {
+    (void)height;
     if (y & 1) // Even or odd row?
         // reverse every second line for a serpentine lled layout
         return (y + 1) * width - 1 - x;
@@ -24,6 +27,7 @@ FASTLED_FORCE_INLINE uint16_t xy_serpentine(uint16_t x, uint16_t y,
 
 FASTLED_FORCE_INLINE uint16_t xy_line_by_line(uint16_t x, uint16_t y,
                                               uint16_t width, uint16_t height) {
+    (void)height;
     return y * width + x;
 }
 
@@ -35,7 +39,7 @@ typedef uint16_t (*XYFunction)(uint16_t x, uint16_t y, uint16_t width,
 // 1D index.
 class XYMap {
   public:
-    enum XyMapType { kSeperentine = 0, kLineByLine, kFunction, kLookUpTable };
+    enum XyMapType { kSerpentine = 0, kLineByLine, kFunction, kLookUpTable };
 
     static XYMap constructWithUserFunction(uint16_t width, uint16_t height,
                                            XYFunction xyFunction, uint16_t offset = 0) {
@@ -64,26 +68,12 @@ class XYMap {
     // is_serpentine is true by default. You probably want this unless you are
     // using a different layout
     XYMap(uint16_t width, uint16_t height, bool is_serpentine = true, uint16_t offset = 0)
-        : type(is_serpentine ? kSeperentine : kLineByLine),
+        : type(is_serpentine ? kSerpentine : kLineByLine),
           width(width), height(height), mOffset(offset) {}
 
     XYMap(const XYMap &other) = default;
 
-    ScreenMap toScreenMap() const {
-        const uint16_t length = width * height;
-        ScreenMap out(length);
-        for (uint16_t w = 0; w < width; w++) {
-            for (uint16_t h = 0; h < height; h++) {
-                uint16_t index = mapToIndex(w, h);
-                pair_xy_float p = {
-                    static_cast<float>(w),
-                    static_cast<float>(h)
-                };
-                out.set(index, p);
-            }
-        }
-        return out;
-    }
+    ScreenMap toScreenMap() const;
 
     void mapPixels(const CRGB* input, CRGB* output) const {
         uint16_t pos = 0;
@@ -116,10 +106,14 @@ class XYMap {
         mLookUpTable.reset();
     }
 
+    uint16_t operator()(uint16_t x, uint16_t y) const {
+        return mapToIndex(x, y);
+    }
+
     uint16_t mapToIndex(uint16_t x, uint16_t y) const {
         uint16_t index;
         switch (type) {
-        case kSeperentine:
+        case kSerpentine:
             x = x % width;
             y = y % height;
             index = xy_serpentine(x, y, width, height);

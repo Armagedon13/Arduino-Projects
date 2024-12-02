@@ -11,15 +11,15 @@
 
 FASTLED_NAMESPACE_BEGIN
 
-DataStream::DataStream(int bytes_per_frame) : mBytesPerFrame(bytes_per_frame), mUsingByteStream(false) {
+DataStream::DataStream(int bytes_per_frame) : mbytesPerFrame(bytes_per_frame), mUsingByteStream(false) {
 }
 
 DataStream::~DataStream() {
-    Close();
+    close();
 }
 
 bool DataStream::begin(FileHandleRef h) {
-    Close();
+    close();
     mFileHandle = h;
     mFileBuffer = FileBufferRef::New(h);
     mUsingByteStream = false;
@@ -27,26 +27,25 @@ bool DataStream::begin(FileHandleRef h) {
 }
 
 bool DataStream::beginStream(ByteStreamRef s) {
-    Close();
+    close();
     mByteStream = s;
     mUsingByteStream = true;
-    return mByteStream->available(mBytesPerFrame);
+    return mByteStream->available(mbytesPerFrame);
 }
 
-void DataStream::Close() {
+void DataStream::close() {
     if (!mUsingByteStream && mFileBuffer) {
-        mFileBuffer->close();
         mFileBuffer.reset();
     }
     mByteStream.reset();
     mFileHandle.reset();
 }
 
-int32_t DataStream::BytesPerFrame() {
-    return mBytesPerFrame;
+int32_t DataStream::bytesPerFrame() {
+    return mbytesPerFrame;
 }
 
-bool DataStream::ReadPixel(CRGB* dst) {
+bool DataStream::readPixel(CRGB* dst) {
     if (mUsingByteStream) {
         return mByteStream->read(&dst->r, 1) && mByteStream->read(&dst->g, 1) && mByteStream->read(&dst->b, 1);
     } else {
@@ -56,40 +55,53 @@ bool DataStream::ReadPixel(CRGB* dst) {
 
 bool DataStream::available() const {
     if (mUsingByteStream) {
-        return mByteStream->available(mBytesPerFrame);
+        return mByteStream->available(mbytesPerFrame);
     } else {
         return mFileBuffer->available();
     }
 }
 
+bool DataStream::atEnd() const {
+    if (mUsingByteStream) {
+        return false;
+    } else {
+        return !mFileBuffer->available();
+    }
+}
+
 bool DataStream::readFrame(Frame* frame) {
     // returns true if a frame was read.
-    if (!FramesRemaining() || !frame) {
+    if (!framesRemaining() || !frame) {
         return false;
     }
-    if (!readFrame(frame)) {
-        return false;
+    if (mUsingByteStream) {
+        mByteStream->read(frame->rgb(), mbytesPerFrame);
+    } else {
+        mFileBuffer->read(frame->rgb(), mbytesPerFrame);
     }
     return true;
 }
 
-int32_t DataStream::FramesRemaining() const {
-    if (mBytesPerFrame == 0) return 0;
-    int32_t bytes_left = BytesRemaining();
-    return (bytes_left > 0) ? (bytes_left / mBytesPerFrame) : 0;
+int32_t DataStream::framesRemaining() const {
+    if (mbytesPerFrame == 0) return 0;
+    int32_t bytes_left = bytesRemaining();
+    if (bytes_left <= 0) {
+        return 0;
+    }
+    return bytes_left / mbytesPerFrame;
 }
 
-int32_t DataStream::FramesDisplayed() const {
+int32_t DataStream::framesDisplayed() const {
     if (mUsingByteStream) {
         // ByteStream doesn't have a concept of total size, so we can't calculate this
         return -1;
     } else {
         int32_t bytes_played = mFileBuffer->FileSize() - mFileBuffer->BytesLeft();
-        return bytes_played / mBytesPerFrame;
+        return bytes_played / mbytesPerFrame;
     }
 }
 
-int32_t DataStream::BytesRemaining() const {
+int32_t DataStream::bytesRemaining() const {
     if (mUsingByteStream) {
         return INT32_MAX;
     } else {
@@ -97,16 +109,16 @@ int32_t DataStream::BytesRemaining() const {
     }
 }
 
-int32_t DataStream::BytesRemainingInFrame() const {
-    return BytesRemaining() % mBytesPerFrame;
+int32_t DataStream::bytesRemainingInFrame() const {
+    return bytesRemaining() % mbytesPerFrame;
 }
 
-bool DataStream::Rewind() {
+bool DataStream::rewind() {
     if (mUsingByteStream) {
         // ByteStream doesn't support rewinding
         return false;
     } else {
-        mFileBuffer->RewindToStart();
+        mFileBuffer->rewindToStart();
         return true;
     }
 }
@@ -115,7 +127,7 @@ DataStream::Type DataStream::getType() const {
     return mUsingByteStream ? Type::kStreaming : Type::kFile;
 }
 
-size_t DataStream::ReadBytes(uint8_t* dst, size_t len) {
+size_t DataStream::readBytes(uint8_t* dst, size_t len) {
     uint16_t bytesRead = 0;
     if (mUsingByteStream) {
         while (bytesRead < len && mByteStream->available(len)) {

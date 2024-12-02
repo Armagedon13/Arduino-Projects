@@ -9,7 +9,6 @@
 #    enforced by the script that sets up the docker container.
 # 2. The docker container has installed compiler dependencies in the /js directory.
 
-
 import argparse
 import hashlib
 import json
@@ -18,31 +17,85 @@ import re
 import shutil
 import subprocess
 import sys
+from dataclasses import dataclass
+from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import List
 
+
+@dataclass
+class DateLine:
+    dt: datetime
+    line: str
+
+
+class BuildMode(Enum):
+    DEBUG = "DEBUG"
+    QUICK = "QUICK"
+    RELEASE = "RELEASE"
+
+    @classmethod
+    def from_string(cls, mode_str: str) -> "BuildMode":
+        try:
+            return cls[mode_str.upper()]
+        except KeyError:
+            valid_modes = [mode.name for mode in cls]
+            raise ValueError(f"BUILD_MODE must be one of {valid_modes}, got {mode_str}")
+
+
+@dataclass
+class SyntaxCheckResult:
+    file_path: Path
+    is_valid: bool
+    message: str
+
+
 JS_DIR = Path("/js")
-MAPPED_DIR = Path("/mapped")
+FASTLED_DIR = JS_DIR / "fastled"
+FASTLED_SRC = FASTLED_DIR / "src"
+FASTLED_SRC_PLATFORMS = FASTLED_SRC / "platforms"
+FASTLED_SRC_PLATFORMS_WASM = FASTLED_SRC_PLATFORMS / "wasm"
+FASTLED_SRC_PLATFORMS_WASM_COMPILER = FASTLED_SRC_PLATFORMS_WASM / "compiler"
+
+
 JS_SRC = JS_DIR / "src"
+
+FASTLED_DIR = JS_DIR / "fastled"
+FASTLED_SRC_DIR = FASTLED_DIR / "src"
+FASTLED_PLATFORMS_DIR = FASTLED_SRC_DIR / "platforms"
+FASTLED_WASM_DIR = FASTLED_PLATFORMS_DIR / "wasm"
+FASTLED_COMPILER_DIR = FASTLED_WASM_DIR / "compiler"
+
 PIO_BUILD_DIR = JS_DIR / ".pio/build"
 ARDUINO_H_SRC = JS_DIR / "Arduino.h"
-INDEX_HTML_SRC = JS_DIR / "index.html"
-INDEX_CSS_SRC = JS_DIR / "index.css"
-INDEX_JS_SRC = JS_DIR / "index.js"
+INDEX_HTML_SRC = FASTLED_COMPILER_DIR / "index.html"
+INDEX_CSS_SRC = FASTLED_COMPILER_DIR / "index.css"
+INDEX_JS_SRC = FASTLED_COMPILER_DIR / "index.js"
+
+
 WASM_COMPILER_SETTTINGS = JS_DIR / "wasm_compiler_flags.py"
 OUTPUT_FILES = ["fastled.js", "fastled.wasm"]
 HEADERS_TO_INSERT = ['#include "Arduino.h"', '#include "platforms/wasm/js.h"']
 FILE_EXTENSIONS = [".ino", ".h", ".hpp", ".cpp"]
-MAX_COMPILE_ATTEMPTS = 2
+MAX_COMPILE_ATTEMPTS = 1  # Occasionally the compiler fails for unknown reasons, but disabled because it increases the build time on failure.
 FASTLED_OUTPUT_DIR_NAME = "fastled_js"
 
 assert JS_DIR.exists()
-assert MAPPED_DIR.exists()
 assert ARDUINO_H_SRC.exists()
 assert INDEX_HTML_SRC.exists()
-assert INDEX_CSS_SRC.exists()
+assert INDEX_CSS_SRC.exists(), f"Index CSS not found at {INDEX_CSS_SRC}"
 assert INDEX_JS_SRC.exists()
 assert WASM_COMPILER_SETTTINGS.exists()
+assert FASTLED_SRC_PLATFORMS_WASM_COMPILER.exists()
+assert JS_DIR.exists(), f"JS_DIR does not exist: {JS_DIR}"
+assert ARDUINO_H_SRC.exists(), f"ARDUINO_H_SRC does not exist: {ARDUINO_H_SRC}"
+assert INDEX_HTML_SRC.exists(), f"INDEX_HTML_SRC does not exist: {INDEX_HTML_SRC}"
+assert INDEX_CSS_SRC.exists(), f"INDEX_CSS_SRC does not exist: {INDEX_CSS_SRC}"
+assert INDEX_JS_SRC.exists(), f"INDEX_JS_SRC does not exist: {INDEX_JS_SRC}"
+assert (
+    WASM_COMPILER_SETTTINGS.exists()
+), f"WASM_COMPILER_SETTTINGS does not exist: {WASM_COMPILER_SETTTINGS}"
 
 
 def copy_files(src_dir: Path, js_src: Path) -> None:
@@ -56,25 +109,36 @@ def copy_files(src_dir: Path, js_src: Path) -> None:
             shutil.copy2(item, js_src / item.name)
 
 
-def compile(js_dir: Path) -> int:
+def compile(js_dir: Path, build_mode: BuildMode, auto_clean: bool) -> int:
     print("Starting compilation process...")
-    max_attempts = 2
+    max_attempts = 1
+    env = os.environ.copy()
+    env["BUILD_MODE"] = build_mode.name
+    print(f"Build mode: {build_mode.name}")
 
+    output_lines = []
     for attempt in range(1, max_attempts + 1):
         try:
             print(f"Attempting compilation (attempt {attempt}/{max_attempts})...")
+            cmd_list = ["pio", "run"]
+            if not auto_clean:
+                cmd_list.append("--disable-auto-clean")
             process = subprocess.Popen(
-                ["pio", "run"],
+                cmd_list,
                 cwd=js_dir,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 universal_newlines=True,
+                env=env,
             )
             assert process.stdout is not None
             for line in process.stdout:
-                processed_line = line.replace(".pio/libdeps/wasm/FastLED/", "")
-                print(processed_line, end="")
+                processed_line = line.replace("fastled/src", "src")
+                timestamped_line = _timestamp_output(processed_line)
+                output_lines.append(timestamped_line)
             process.wait()
+            relative_output = _make_timestamps_relative("\n".join(output_lines))
+            print(relative_output)
             if process.returncode == 0:
                 print(f"Compilation successful on attempt {attempt}")
                 return 0
@@ -154,8 +218,126 @@ def process_ino_files(src_dir: Path) -> None:
     print("Transform to cpp and insert header operations completed.")
 
 
+def check_syntax_with_gcc(file_path, gcc_path="gcc"):
+    """
+    Perform syntax checking on a C or C++ source file using GCC.
+
+    Parameters:
+        file_path (str): Path to the source file to check.
+        gcc_path (str): Path to the GCC executable (default is 'gcc').
+
+    Returns:
+        bool: True if syntax is correct, False otherwise.
+        str: Output or error message from GCC.
+    """
+    try:
+        # Run GCC with -fsyntax-only flag for syntax checking
+        result = subprocess.run(
+            [gcc_path, "-fsyntax-only", file_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+        # Check the return code to determine if syntax is valid
+        if result.returncode == 0:
+            return True, "Syntax check passed successfully."
+        else:
+            return False, result.stderr
+    except FileNotFoundError:
+        return False, f"GCC not found at {gcc_path}."
+    except Exception as e:
+        return False, str(e)
+
+
+def check_syntax(
+    directory_path: Path, gcc_path: str = "gcc"
+) -> list[SyntaxCheckResult]:
+    # os walk
+    out: list[SyntaxCheckResult] = []
+    exclusion_list = set("fastled_js")
+    for root, dirs, files in os.walk(directory_path):
+        # if sub directory is in exclusion list, skip
+        dirs[:] = [d for d in dirs if d not in exclusion_list]
+        for file in files:
+            if file.endswith(".cpp") or file.endswith(".ino"):
+                file_path = os.path.join(root, file)
+                is_valid, message = check_syntax_with_gcc(file_path, gcc_path)
+                if not is_valid:
+                    print(f"Syntax check failed for file: {file_path}")
+                    print(f"Error message: {message}")
+                    out.append(
+                        SyntaxCheckResult(
+                            file_path=Path(file_path), is_valid=False, message=message
+                        )
+                    )
+                else:
+                    print(f"Syntax check passed for file: {file_path}")
+                    out.append(
+                        SyntaxCheckResult(
+                            file_path=Path(file_path),
+                            is_valid=True,
+                            message="Syntax check passed successfully.",
+                        )
+                    )
+    return out
+
+
+def _make_timestamps_relative(stdout: str) -> str:
+    def parse(line: str) -> DateLine:
+        parts = line.split(" ")
+        if len(parts) < 2:
+            raise ValueError(f"Invalid line: {line}")
+
+        date_str, time_str = parts[:2]
+        rest = " ".join(parts[2:])
+        # Parse with microsecond precision
+        dt = datetime.strptime(f"{date_str} {time_str}", "%Y-%m-%d %H:%M:%S.%f")
+        return DateLine(dt, rest)
+
+    lines = stdout.split("\n")
+    if not lines:
+        return stdout
+    parsed: list[DateLine] = []
+    for line in lines:
+        if not line.strip():  # Skip empty lines
+            continue
+        try:
+            parsed.append(parse(line))
+        except ValueError:
+            print(f"Failed to parse line: {line}")
+            continue
+
+    if not parsed:
+        return stdout
+
+    outlines: list[str] = []
+    start_time = parsed[0].dt
+
+    # Calculate relative times with
+    for p in parsed:
+        delta = p.dt - start_time
+        seconds = delta.total_seconds()
+        line_str = f"{seconds:3.2f} {p.line}"
+        outlines.append(line_str)
+
+    return "\n".join(outlines)
+
+
+def _timestamp_output(line: str) -> str:
+    now = datetime.now()
+    timestamp = now.strftime("%Y-%m-%d %H:%M:%S.%f")
+    return f"{timestamp} {line.rstrip()}"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Compile FastLED for WASM")
+    parser.add_argument(
+        "--mapped-dir",
+        type=Path,
+        default="/mapped",
+        help="Directory containing source files (default: /mapped)",
+    )
     parser.add_argument(
         "--keep-files", action="store_true", help="Keep source files after compilation"
     )
@@ -172,10 +354,31 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--only-compile", action="store_true", help="Only compile the project"
     )
-    parser.add_argument("--debug", action="store_true", help="Enable debug and symbols")
-    debug_from_env = bool(int(os.getenv("DEBUG", 0)))
-    if debug_from_env:
-        parser.set_defaults(debug=True)
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="Enable profiling for compilation to see what's taking so long.",
+    )
+
+    parser.add_argument(
+        "--disable-auto-clean",
+        action="store_true",
+        help="Massaive speed improvement to not have to rebuild everything, but flakes out sometimes.",
+        default=os.getenv("DISABLE_AUTO_CLEAN", "0") == "1",
+    )
+    # Add mutually exclusive build mode group
+    build_mode = parser.add_mutually_exclusive_group()
+    build_mode.add_argument("--debug", action="store_true", help="Build in debug mode")
+    build_mode.add_argument(
+        "--quick",
+        action="store_true",
+        default=True,
+        help="Build in quick mode (default)",
+    )
+    build_mode.add_argument(
+        "--release", action="store_true", help="Build in release mode"
+    )
+
     return parser.parse_args()
 
 
@@ -190,9 +393,12 @@ def find_project_dir(mapped_dir: Path) -> Path:
     return src_dir
 
 
-def process_compile(js_dir: Path) -> None:
+def process_compile(js_dir: Path, build_mode: BuildMode, auto_clean: bool) -> None:
     print("Starting compilation...")
-    if compile(js_dir) != 0:
+    rtn = compile(js_dir, build_mode, auto_clean)
+    print(f"Compilation return code: {rtn}")
+    if rtn != 0:
+        print("Compilation failed.")
         raise RuntimeError("Compilation failed.")
     print("Compilation successful.")
 
@@ -217,19 +423,24 @@ def main() -> int:
     print("Starting FastLED WASM compilation script...")
     args = parse_args()
     print(f"Keep files flag: {args.keep_files}")
+    print(f"Using mapped directory: {args.mapped_dir}")
+
+    if args.profile:
+        print("Enabling profiling for compilation.")
+        # Profile linking
+        os.environ["EMPROFILE"] = "2"
 
     try:
         if JS_SRC.exists():
             shutil.rmtree(JS_SRC)
         JS_SRC.mkdir(parents=True, exist_ok=True)
-        src_dir = find_project_dir(MAPPED_DIR)
+        src_dir = find_project_dir(args.mapped_dir)
 
         any_only_flags = args.only_copy or args.only_insert_header or args.only_compile
 
         do_copy = not any_only_flags or args.only_copy
         do_insert_header = not any_only_flags or args.only_insert_header
         do_compile = not any_only_flags or args.only_compile
-        debug = args.debug
 
         if do_copy:
             copy_files(src_dir, JS_SRC)
@@ -238,23 +449,42 @@ def main() -> int:
             if args.only_copy:
                 return 0
 
+        print("Performing syntax check...")
+        syntax_results = check_syntax(JS_SRC)
+        failed_checks = [r for r in syntax_results if not r.is_valid]
+        if failed_checks:
+            print("\nSyntax check failed!")
+            for result in failed_checks:
+                print(f"\nFile: {result.file_path}")
+                print(f"Error: {result.message}")
+            return 1
+        print("Syntax check passed for all files.")
+
         if do_insert_header:
             process_ino_files(JS_SRC)
             if args.only_insert_header:
                 print("Transform to cpp and insert header operations completed.")
                 return 0
 
-        with open(WASM_COMPILER_SETTTINGS, "r") as f:
-            content = f.read()
-        if debug:
-            content = re.sub(r"DEBUG = 0", "DEBUG = 1", content)
-        else:
-            content = re.sub(r"DEBUG = 1", "DEBUG = 0", content)
-        with open(WASM_COMPILER_SETTTINGS, "w") as f:
-            f.write(content)
-
         if do_compile:
-            process_compile(JS_DIR)
+            try:
+                # Determine build mode from args
+                if args.debug:
+                    build_mode = BuildMode.DEBUG
+                elif args.release:
+                    build_mode = BuildMode.RELEASE
+                else:
+                    # Default to QUICK mode if neither debug nor release specified
+                    build_mode = BuildMode.QUICK
+
+                process_compile(
+                    js_dir=JS_DIR,
+                    build_mode=build_mode,
+                    auto_clean=not args.disable_auto_clean,
+                )
+            except Exception as e:
+                print(f"Error: {str(e)}")
+                return 1
             build_dirs = [d for d in PIO_BUILD_DIR.iterdir() if d.is_dir()]
             if len(build_dirs) != 1:
                 raise RuntimeError(
@@ -305,17 +535,37 @@ def main() -> int:
                 output_data_dir.mkdir(parents=True, exist_ok=True)
                 for _file in optional_input_data_dir.iterdir():
                     if _file.is_file():  # Only copy files, not directories
-                        print(f"Copying {_file.name} -> {output_data_dir}")
-                        shutil.copy2(_file, output_data_dir / _file.name)
-                        hash = hash_file(_file)
-                        manifest.append(
-                            {
-                                "name": _file.name,
-                                "path": f"data/{_file.name}",
-                                "size": _file.stat().st_size,
-                                "hash": hash,
-                            }
-                        )
+                        filename: str = _file.name
+                        if filename.endswith(".embedded.json"):
+                            print("Embedding data file")
+                            filename_no_embedded = filename.replace(
+                                ".embedded.json", ""
+                            )
+                            # read json file
+                            with open(_file, "r") as f:
+                                data = json.load(f)
+                            hash_value = data["hash"]
+                            size = data["size"]
+                            manifest.append(
+                                {
+                                    "name": filename_no_embedded,
+                                    "path": f"data/{filename_no_embedded}",
+                                    "size": size,
+                                    "hash": hash_value,
+                                }
+                            )
+                        else:
+                            print(f"Copying {_file.name} -> {output_data_dir}")
+                            shutil.copy2(_file, output_data_dir / _file.name)
+                            hash = hash_file(_file)
+                            manifest.append(
+                                {
+                                    "name": _file.name,
+                                    "path": f"data/{_file.name}",
+                                    "size": _file.stat().st_size,
+                                    "hash": hash,
+                                }
+                            )
 
             # Write manifest file even if empty
             print("Writing manifest files.json")
@@ -328,6 +578,10 @@ def main() -> int:
         return 0
 
     except Exception as e:
+        import traceback
+
+        stacktrace = traceback.format_exc()
+        print(stacktrace)
         print(f"Error: {str(e)}")
         return 1
 

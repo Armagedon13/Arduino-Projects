@@ -12,11 +12,12 @@
 #include "namespace.h"
 #include "ref.h"
 #include "ui.h"
-#include "fx/detail/time_warp.h"
+#include "fx/time.h"
+#include "fx/video.h"
 
 
 // Forward declaration
-class TimeWarp;
+class TimeFunction;
 
 #ifndef FASTLED_FX_ENGINE_MAX_FX
 #define FASTLED_FX_ENGINE_MAX_FX 64
@@ -53,6 +54,15 @@ class FxEngine {
      * @return The index of the added effect, or -1 if the effect couldn't be added.
      */
     int addFx(FxRef effect);
+
+
+    /**
+     * @brief Adds a new video effect to the engine.
+     * @param video The video to be added.
+     * @param xymap The XYMap to be added.
+     * @return The index of the added effect, or -1 if the effect couldn't be added.
+     */
+    int addVideo(Video video, XYMap xymap);
 
     /**
      * @brief Adds a new effect to the engine. Allocate from static memory.
@@ -107,15 +117,15 @@ class FxEngine {
     IntFxMap& _getEffects() { return mEffects; }
 
     /**
-     * @brief Sets the time scale for the TimeWarp object.
+     * @brief Sets the time scale for the TimeFunction object.
      * @param timeScale The new time scale value.
      */
-    void setTimeScale(float timeScale) { mTimeWarp.setTimeScale(timeScale); }
+    void setTimeScale(float timeScale) { mTimeFunction.setScale(timeScale); }
 
   private:
     Slider mTimeBender;
     int mCounter = 0;
-    TimeWarp mTimeWarp;  // FxEngine controls the clock, to allow "time-bending" effects.
+    TimeScale mTimeFunction;  // FxEngine controls the clock, to allow "time-bending" effects.
     IntFxMap mEffects; ///< Collection of effects
     FxCompositor mCompositor; ///< Handles effect transitions and rendering
     int mCurrId; ///< Id of the current effect
@@ -125,7 +135,7 @@ class FxEngine {
 
 inline FxEngine::FxEngine(uint16_t numLeds)
     : mTimeBender("FxEngineSpeed", 1.0f, -50.0f, 50.0f, 0.01f), 
-      mTimeWarp(0), 
+      mTimeFunction(0), 
       mCompositor(numLeds), 
       mCurrId(0) {
 }
@@ -143,6 +153,12 @@ inline int FxEngine::addFx(FxRef effect) {
         mCompositor.startTransition(0, 0, effect);
     }
     return mCounter++;
+}
+
+int FxEngine::addVideo(Video video, XYMap xymap) {
+    auto vidfx = VideoFxRef::New(video, xymap);
+    int id = addFx(vidfx);
+    return id;
 }
 
 inline bool FxEngine::nextFx(uint16_t duration) {
@@ -195,9 +211,9 @@ inline FxRef FxEngine::getFx(int id) {
 }
 
 inline bool FxEngine::draw(uint32_t now, CRGB *finalBuffer) {
-    mTimeWarp.setTimeScale(mTimeBender);
-    mTimeWarp.update(now);
-    uint32_t warpedTime = mTimeWarp.getTime();
+    mTimeFunction.setScale(mTimeBender);
+    mTimeFunction.update(now);
+    uint32_t warpedTime = mTimeFunction.time();
 
     if (mEffects.empty()) {
         return false;

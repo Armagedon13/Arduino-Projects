@@ -5,28 +5,27 @@
 
 #include "file_system.h"
 #include "ref.h"
+#include "crgb.h"
 #include "namespace.h"
 
 FASTLED_NAMESPACE_BEGIN
 
 FASTLED_SMART_REF(FileBuffer);
+FASTLED_SMART_REF(FileHandle);
 
 class FileBuffer: public Referent {
  public:
   FileBuffer(FileHandleRef file);
   virtual ~FileBuffer();
-  void RewindToStart();
+  void rewindToStart();
   bool available() const;
   int32_t BytesLeft() const;
   int32_t FileSize() const;
-  void close() {
-    mFile->close();
-    mIsOpen = false;
-  }
 
   // Reads the next byte, else -1 is returned for end of buffer.
   int16_t read();
   size_t read(uint8_t* dst, size_t n);
+  size_t read(CRGB* dst, size_t n) { return read((uint8_t*)dst, n * 3); }
 
  private:
   void ResetBuffer();
@@ -40,7 +39,6 @@ class FileBuffer: public Referent {
   int16_t mLength;
 
   FileHandleRef mFile;
-  bool mIsOpen;
 };
 
 FASTLED_NAMESPACE_END

@@ -1,15 +1,15 @@
 
 // g++ --std=c++11 test.cpp
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "test.h"
 
-#include "doctest.h"
+#include "test.h"
 
 #include "FastLED.h"
 #include "cled_controller.h"
 #include "platforms/wasm/strip_id_map.h"
 
-#include "namespace.h"
+#include "fl/namespace.h"
 FASTLED_USING_NAMESPACE
 
 struct FakeSpi {

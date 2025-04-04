@@ -1,15 +1,21 @@
+/// @file crgb.h
+/// Defines the red, green, and blue (RGB) pixel struct
 
 #pragma once
 
 #include <stdint.h>
 
 #include "chsv.h"
-#include "namespace.h"
+#include "fl/namespace.h"
 #include "color.h"
 #include "lib8tion/types.h"
-#include "force_inline.h"
-#include "template_magic.h"
+#include "fl/force_inline.h"
+#include "fl/template_magic.h"
 
+
+namespace fl {
+class Str;
+}
 
 FASTLED_NAMESPACE_BEGIN
 
@@ -32,7 +38,16 @@ struct CRGB;
 
 /// Forward declaration of hsv2rgb_rainbow here,
 /// to avoid circular dependencies.
-extern void hsv2rgb_rainbow( const CHSV& hsv, CRGB& rgb);
+///
+/// Convert an HSV value to RGB using a visually balanced rainbow. 
+/// This "rainbow" yields better yellow and orange than a straight
+/// mathematical "spectrum".
+///
+/// ![FastLED 'Rainbow' Hue Chart](https://raw.githubusercontent.com/FastLED/FastLED/gh-pages/images/HSV-rainbow-with-desc.jpg)
+///
+/// @param hsv CHSV struct to convert to RGB. Max hue supported is HUE_MAX_RAINBOW
+/// @param rgb CRGB struct to store the result of the conversion (will be modified)
+void hsv2rgb_rainbow( const struct CHSV& hsv, struct CRGB& rgb);
 
 
 /// Representation of an RGB pixel (Red, Green, Blue)
@@ -262,7 +277,7 @@ struct CRGB {
     /// "plain math" dimming rules. "Plain math" dimming rules means that the low light
     /// levels may dim all the way to 100% black.
     /// @see nscale8x3
-    FASTLED_FORCE_INLINE CRGB& nscale8 (uint8_t scaledown );
+    CRGB& nscale8 (uint8_t scaledown );
 
     /// Scale down a RGB to N/256ths of its current brightness, using
     /// "plain math" dimming rules. "Plain math" dimming rules means that the low light
@@ -351,6 +366,8 @@ struct CRGB {
         return ret;
     }
 #endif
+
+    fl::Str toString() const;
 
     /// Get the "luma" of a CRGB object. In other words, roughly how much
     /// light the CRGB pixel is putting out (from 0 to 255).
@@ -727,19 +744,8 @@ FASTLED_FORCE_INLINE CRGB operator*( const CRGB& p1, uint8_t d);
 /// Scale using CRGB::nscale8_video()
 FASTLED_FORCE_INLINE CRGB operator%( const CRGB& p1, uint8_t d);
 
+/// @} PixelTypes
 
-
-// Make compatible with std::ostream and other ostream-like objects
-FASTLED_DEFINE_OUTPUT_OPERATOR(CRGB) {
-    os <<("CRGB(");
-    os <<(static_cast<int>(obj.r));
-    os <<(", ");
-    os <<(static_cast<int>(obj.g));
-    os <<(", ");
-    os <<(static_cast<int>(obj.b));
-    os <<(")");
-    return os;
-}
 
 FASTLED_NAMESPACE_END
 

@@ -8,25 +8,57 @@ import time
 import warnings
 import zipfile
 import zlib
+from contextlib import asynccontextmanager
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from threading import Timer
-from typing import Callable
 
+import psutil  # type: ignore
+from code_sync import (  # type: ignore
+    sync_source_directory_if_volume_is_mapped,
+    sync_src_to_target,
+)
+from compile_lock import COMPILE_LOCK  # type: ignore
 from disklru import DiskLRUCache  # type: ignore
-from fastapi import Header  # type: ignore
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, UploadFile
-from fastapi.responses import FileResponse, RedirectResponse  # type: ignore
-from sketch_hasher import generate_hash_of_project_files
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
-from starlette.responses import Response
+from fastapi import (  # type: ignore
+    BackgroundTasks,
+    Body,
+    FastAPI,
+    File,
+    Header,
+    HTTPException,
+    UploadFile,
+)
+from fastapi.responses import FileResponse, RedirectResponse, Response  # type: ignore
+from sketch_hasher import generate_hash_of_project_files  # type: ignore
+from starlette.middleware.base import BaseHTTPMiddleware  # type: ignore
+from starlette.requests import Request  # type: ignore
 
+_EXAMPLES: list[str] = [
+    "Chromancer",
+    "LuminescentGrand",
+    "wasm",
+    "FxAnimartrix",
+    "FxCylon",
+    "FxDemoReel100",
+    "FxFire2012",
+    "FxEngine",
+    "FxGfx2Video",
+    "FxNoisePlusPalette",
+    "FxNoiseRing",
+    "FxSdCard",
+    "FxWater",
+]
 _VOLUME_MAPPED_SRC = Path("/host/fastled/src")
 _RSYNC_DEST = Path("/js/fastled/src")
 
+_TEMP_DIR = Path("/tmp")
+
 _TEST = False
 _UPLOAD_LIMIT = 10 * 1024 * 1024
+_MEMORY_LIMIT_MB = int(os.environ.get("MEMORY_LIMIT_MB", "0"))  # 0 means disabled
+_MEMORY_CHECK_INTERVAL = 0.1  # Check every 100ms
+_MEMORY_EXCEEDED_EXIT_CODE = 137  # Standard OOM kill code
 # Protect the endpoints from random bots.
 # Note that that the wasm_compiler.py greps for this string to get the URL of the server.
 # Changing the name could break the compiler.
@@ -37,17 +69,19 @@ _LIVE_GIT_UPDATES_INTERVAL = int(
 )  # Update every 24 hours
 _ALLOW_SHUTDOWN = os.environ.get("ALLOW_SHUTDOWN", "false").lower() in ["true", "1"]
 _NO_SKETCH_CACHE = os.environ.get("NO_SKETCH_CACHE", "false").lower() in ["true", "1"]
-_LIVE_GIT_FASTLED_DIR = Path("/git/fastled2")
+_LIVE_GIT_FASTLED_DIR = Path("/git/fastled")
 
 # TODO - cleanup
 _NO_AUTO_UPDATE = (
     os.environ.get("NO_AUTO_UPDATE", "0") in ["1", "true"]
     or _VOLUME_MAPPED_SRC.exists()
 )
-_LIVE_GIT_UPDATES_ENABLED = (not _NO_AUTO_UPDATE) or (
-    os.environ.get("LIVE_GIT_UPDATES", "0") in ["1", "true"]
-)
-_START_TIME = time.time()
+# This feature is broken. To fix, issue a git update, THEN invoke the compiler command to re-warm the cache.
+# otherwise you get worst case scenario on a new compile.
+# _LIVE_GIT_UPDATES_ENABLED = (not _NO_AUTO_UPDATE) or (
+#     os.environ.get("LIVE_GIT_UPDATES", "0") in ["1", "true"]
+# )
+_LIVE_GIT_UPDATES_ENABLED = False
 
 
 if _NO_SKETCH_CACHE:
@@ -55,7 +89,10 @@ if _NO_SKETCH_CACHE:
 
 UPLOAD_DIR = Path("/uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
-COMPILE_LOCK = threading.Lock()
+COMPILE_COUNT = 0
+COMPILE_FAILURES = 0
+COMPILE_SUCCESSES = 0
+START_TIME = time.time()
 
 OUTPUT_DIR = Path("/output")
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -64,9 +101,6 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 SKETCH_CACHE_FILE = OUTPUT_DIR / "compile_cache.db"
 SKETCH_CACHE_MAX_ENTRIES = 50
 SKETCH_CACHE = DiskLRUCache(str(SKETCH_CACHE_FILE), SKETCH_CACHE_MAX_ENTRIES)
-
-
-app = FastAPI()
 
 
 class UploadSizeMiddleware(BaseHTTPMiddleware):
@@ -90,6 +124,31 @@ class UploadSizeMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
+@asynccontextmanager  # type: ignore
+async def lifespan(app: FastAPI):  # type: ignore
+    print("Starting FastLED wasm compiler server...")
+    try:
+        print(f"Settings: {json.dumps(get_settings(), indent=2)}")
+    except Exception as e:
+        print(f"Error getting settings: {e}")
+
+    if _MEMORY_LIMIT_MB > 0:
+        print(f"Starting memory watchdog (limit: {_MEMORY_LIMIT_MB}MB)")
+        memory_watchdog()
+
+    sync_source_directory_if_volume_is_mapped()
+    if _LIVE_GIT_UPDATES_ENABLED:
+        Timer(
+            _LIVE_GIT_UPDATES_INTERVAL, sync_live_git_to_target
+        ).start()  # Start the periodic git update
+    else:
+        print("Auto updates disabled")
+    yield  # end startup
+    return  # end shutdown
+
+
+app = FastAPI(lifespan=lifespan)
+
 app.add_middleware(UploadSizeMiddleware, max_upload_size=_UPLOAD_LIMIT)
 
 
@@ -103,7 +162,7 @@ def update_live_git_repo() -> None:
                     "git",
                     "clone",
                     "https://github.com/fastled/fastled.git",
-                    "/git/fastled2",
+                    str(_LIVE_GIT_FASTLED_DIR),
                     "--depth=1",
                 ],
                 check=True,
@@ -144,68 +203,6 @@ def cache_put(hash: str, data: bytes) -> None:
     SKETCH_CACHE.put_bytes(hash, data)
 
 
-def sync_src_to_target(
-    src: Path, dst: Path, callback: Callable[[], None] | None = None
-) -> bool:
-    """Sync the volume mapped source directory to the FastLED source directory."""
-    suppress_print = (
-        _START_TIME + 30 > time.time()
-    )  # Don't print during initial volume map.
-    if not src.exists():
-        # Volume is not mapped in so we don't rsync it.
-        print(f"Skipping rsync, as fastled src at {src} doesn't exist")
-        return False
-    try:
-        print("\nSyncing source directories...")
-        with COMPILE_LOCK:
-            # Use rsync to copy files, preserving timestamps and deleting removed files
-            cp: subprocess.CompletedProcess = subprocess.run(
-                ["rsync", "-av", "--info=NAME", "--delete", f"{src}/", f"{dst}/"],
-                check=True,
-                text=True,
-                capture_output=True,
-            )
-            if cp.returncode == 0:
-                changed = False
-                changed_lines: list[str] = []
-                lines = cp.stdout.split("\n")
-                for line in lines:
-                    suffix = line.strip().split(".")[-1]
-                    if suffix in ["cpp", "h", "hpp", "ino", "py", "js", "html", "css"]:
-                        if not suppress_print:
-                            print(f"Changed file: {line}")
-                        changed = True
-                        changed_lines.append(line)
-                if changed:
-                    if not suppress_print:
-                        print(f"FastLED code had updates: {changed_lines}")
-                    if callback:
-                        callback()
-                    return True
-                print("Source directory synced successfully with no changes")
-                return False
-            else:
-                print(f"Error syncing directories: {cp.stdout}\n\n{cp.stderr}")
-                return False
-
-    except subprocess.CalledProcessError as e:
-        print(f"Error syncing directories: {e.stdout}\n\n{e.stderr}")
-    except Exception as e:
-        print(f"Error syncing directories: {e}")
-    return False
-
-
-def sync_source_directory_if_volume_is_mapped(
-    callback: Callable[[], None] | None = None
-) -> bool:
-    """Sync the volume mapped source directory to the FastLED source directory."""
-    if not _VOLUME_MAPPED_SRC.exists():
-        # Volume is not mapped in so we don't rsync it.
-        print("Skipping rsync, as fastled src volume not mapped")
-        return False
-    return sync_src_to_target(_VOLUME_MAPPED_SRC, _RSYNC_DEST, callback=callback)
-
-
 def sync_live_git_to_target() -> None:
     if not _LIVE_GIT_UPDATES_ENABLED:
         return
@@ -217,6 +214,11 @@ def sync_live_git_to_target() -> None:
 
     sync_src_to_target(
         _LIVE_GIT_FASTLED_DIR / "src", _RSYNC_DEST, callback=on_files_changed
+    )
+    sync_src_to_target(
+        _LIVE_GIT_FASTLED_DIR / "examples",
+        _RSYNC_DEST.parent / "examples",
+        callback=on_files_changed,
     )
     # Basically a setTimeout() in JS.
     Timer(
@@ -233,34 +235,48 @@ def compile_source(
     hash_value: str | None = None,
 ) -> FileResponse | HTTPException:
     """Compile source code and return compiled artifacts as a zip file."""
+    epoch = time.time()
+
+    def _print(msg) -> None:
+        diff = time.time() - epoch
+        print(f" = SERVER {diff:.2f}s = {msg}")
+
+    _print("Starting compile_source")
+    global COMPILE_COUNT
+    global COMPILE_FAILURES
+    global COMPILE_SUCCESSES
+    COMPILE_COUNT += 1
     temp_zip_dir = None
     try:
         # Find the first directory in temp_src_dir
         src_dir = next(Path(temp_src_dir).iterdir())
-        print(f"\nFound source directory: {src_dir}")
+        _print(f"\nFound source directory: {src_dir}")
     except StopIteration:
         return HTTPException(
             status_code=500,
             detail=f"No files found in extracted directory: {temp_src_dir}",
         )
 
-    print("Files are ready, waiting for compile lock...")
+    _print("Files are ready, waiting for compile lock...")
     COMPILE_LOCK_start = time.time()
+
     with COMPILE_LOCK:
         COMPILE_LOCK_end = time.time()
 
-        print("\nRunning compiler...")
+        # is_debug = build_mode.lower() == "debug"
+
+        _print("\nRunning compiler...")
         cmd = [
             "python",
             "run.py",
             "compile",
             f"--mapped-dir={temp_src_dir}",
         ]
+        # if is_debug:
+        #    cmd += ["--no-platformio"]  # fast path that doesn't need a lock.
         cmd.append(f"--{build_mode.lower()}")
         if profile:
             cmd.append("--profile")
-        # cp = subprocess.run(cmd, cwd="/js", capture_output=True, text=True)
-        # cp = subprocess.run(cmd, cwd="/js", stdout=subprocess.STDOUT, stderr=subprocess.STDOUT, text=True)
         proc = subprocess.Popen(
             cmd,
             cwd="/js",
@@ -274,15 +290,18 @@ def compile_source(
         for line in iter(proc.stdout.readline, ""):
             print(line, end="")
             stdout_lines.append(line)
+        _print("Compiler finished.")
         stdout = "".join(stdout_lines)
         proc.stdout.close()
         return_code = proc.wait()
         if return_code != 0:
+            COMPILE_FAILURES += 1
             print(f"Compilation failed with return code {return_code}:\n{stdout}")
             return HTTPException(
                 status_code=400,
                 detail=f"Compilation failed with return code {return_code}:\n{stdout}",
             )
+        COMPILE_SUCCESSES += 1
     compile_time = time.time() - COMPILE_LOCK_end
     COMPILE_LOCK_time = COMPILE_LOCK_end - COMPILE_LOCK_start
 
@@ -294,6 +313,7 @@ def compile_source(
     fastled_js_dir = src_dir / "fastled_js"
     print(f"\nLooking for fastled_js directory at: {fastled_js_dir}")
 
+    _print("Looking for fastled_js directory...")
     if not fastled_js_dir.exists():
         print(f"Directory contents of {src_dir}:")
         for path in src_dir.rglob("*"):
@@ -302,6 +322,7 @@ def compile_source(
             status_code=500,
             detail=f"Compilation artifacts not found at {fastled_js_dir}",
         )
+    _print("Found fastled_js directory, zipping...")
 
     # Replace separate stdout/stderr files with single out.txt
     out_txt = fastled_js_dir / "out.txt"
@@ -317,33 +338,34 @@ def compile_source(
 
     OUTPUT_DIR.mkdir(exist_ok=True)  # Ensure output directory exists
     output_zip_path = OUTPUT_DIR / f"fastled_output_{hash(str(file_path))}.zip"
-    print(f"\nCreating output zip at: {output_zip_path}")
+    _print(f"\nCreating output zip at: {output_zip_path}")
+
     start_zip = time.time()
     try:
         with zipfile.ZipFile(
-            output_zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=9
+            output_zip_path, "w", zipfile.ZIP_DEFLATED, compresslevel=1
         ) as zip_out:
-            print("\nAdding files to output zip:")
+            _print("\nAdding files to output zip:")
             for file_path in fastled_js_dir.rglob("*"):
                 if file_path.is_file():
                     arc_path = file_path.relative_to(fastled_js_dir)
-                    print(f"  Adding: {arc_path}")
+                    _print(f"  Adding: {arc_path}")
                     zip_out.write(file_path, arc_path)
     except zipfile.BadZipFile as e:
-        print(f"Error creating zip file: {e}")
+        _print(f"Error creating zip file: {e}")
         return HTTPException(status_code=500, detail=f"Failed to create zip file: {e}")
     except zlib.error as e:
-        print(f"Compression error: {e}")
+        _print(f"Compression error: {e}")
         return HTTPException(
             status_code=500, detail=f"Zip compression failed - zlib error: {e}"
         )
     except Exception as e:
-        print(f"Unexpected error creating zip: {e}")
+        _print(f"Unexpected error creating zip: {e}")
         return HTTPException(status_code=500, detail=f"Failed to create zip file: {e}")
     zip_time = time.time() - start_zip
     print(f"Zip file created in {zip_time:.2f}s")
 
-    def cleanup_files():
+    def cleanup_files(output_zip_path=output_zip_path, temp_zip_dir=temp_zip_dir):
         if output_zip_path.exists():
             output_zip_path.unlink()
         if temp_zip_dir:
@@ -352,13 +374,33 @@ def compile_source(
             shutil.rmtree(temp_src_dir, ignore_errors=True)
 
     background_tasks.add_task(cleanup_files)
-
+    _print(f"\nReturning output zip: {output_zip_path}")
     return FileResponse(
         path=output_zip_path,
         media_type="application/zip",
         filename="fastled_output.zip",
         background=background_tasks,
     )
+
+
+def memory_watchdog() -> None:
+    """Monitor memory usage and kill process if it exceeds limit."""
+    if _MEMORY_LIMIT_MB <= 0:
+        return
+
+    def check_memory() -> None:
+        while True:
+            process = psutil.Process(os.getpid())
+            memory_mb = process.memory_info().rss / 1024 / 1024
+            if memory_mb > _MEMORY_LIMIT_MB:
+                print(
+                    f"Memory limit exceeded! Using {memory_mb:.1f}MB > {_MEMORY_LIMIT_MB}MB limit"
+                )
+                os._exit(_MEMORY_EXCEEDED_EXIT_CODE)
+            time.sleep(_MEMORY_CHECK_INTERVAL)
+
+    watchdog_thread = threading.Thread(target=check_memory, daemon=True)
+    watchdog_thread.start()
 
 
 def get_settings() -> dict:
@@ -375,15 +417,17 @@ def get_settings() -> dict:
     return settings
 
 
-# on startup
-@app.on_event("startup")
-def startup_event():
-    """Run on startup."""
+def startup() -> None:
     print("Starting FastLED wasm compiler server...")
     try:
         print(f"Settings: {json.dumps(get_settings(), indent=2)}")
     except Exception as e:
         print(f"Error getting settings: {e}")
+
+    if _MEMORY_LIMIT_MB > 0:
+        print(f"Starting memory watchdog (limit: {_MEMORY_LIMIT_MB}MB)")
+        memory_watchdog()
+
     sync_source_directory_if_volume_is_mapped()
     if _LIVE_GIT_UPDATES_ENABLED:
         Timer(
@@ -396,12 +440,15 @@ def startup_event():
 @app.get("/", include_in_schema=False)
 async def read_root() -> RedirectResponse:
     """Redirect to the /docs endpoint."""
+
+    print("Endpoint accessed: / (root redirect to docs)")
     return RedirectResponse(url="/docs")
 
 
 @app.get("/healthz")
 async def healthz() -> dict:
     """Health check endpoint."""
+    print("Endpoint accessed: /healthz")
     return {"status": "ok"}
 
 
@@ -410,6 +457,7 @@ if _ALLOW_SHUTDOWN:
     @app.get("/shutdown")
     async def shutdown() -> dict:
         """Shutdown the server."""
+        print("Endpoint accessed: /shutdown")
         print("Shutting down server...")
         SKETCH_CACHE.close()
         os._exit(0)
@@ -419,6 +467,7 @@ if _ALLOW_SHUTDOWN:
 @app.get("/settings")
 async def settings() -> dict:
     """Get the current settings."""
+    print("Endpoint accessed: /settings")
     settings = {
         "ALLOW_SHUTDOWN": _ALLOW_SHUTDOWN,
         "NO_AUTO_UPDATE": os.environ.get("NO_AUTO_UPDATE", "0"),
@@ -435,7 +484,136 @@ async def settings() -> dict:
 @app.get("/compile/wasm/inuse")
 async def compiler_in_use() -> dict:
     """Check if the compiler is in use."""
+    print("Endpoint accessed: /compile/wasm/inuse")
     return {"in_use": COMPILE_LOCK.locked()}
+
+
+def zip_example_to_file(example: str, dst_zip_file: Path) -> None:
+    examples_dir = Path(f"/js/fastled/examples/{example}")
+    if not examples_dir.exists():
+        raise HTTPException(
+            status_code=404, detail=f"Example {example} not found at {examples_dir}"
+        )
+
+    try:
+        print(f"Creating zip file at: {dst_zip_file}")
+        with zipfile.ZipFile(str(dst_zip_file), "w", zipfile.ZIP_DEFLATED) as zip_out:
+            for file_path in examples_dir.rglob("*"):
+                if file_path.is_file():
+                    if "fastled_js" in file_path.parts:
+                        continue
+                    arc_path = file_path.relative_to(Path("/js/fastled/examples"))
+                    zip_out.write(file_path, arc_path)
+        print(f"Zip file created at: {dst_zip_file}")
+    except Exception as e:
+        warnings.warn(f"Error: {e}")
+        raise
+
+
+def make_random_path_string(digits: int) -> str:
+    """Generate a random number."""
+    import random
+    import string
+
+    return "".join(random.choices(string.ascii_lowercase + string.digits, k=digits))
+
+
+@app.get("/project/init")
+def project_init(background_tasks: BackgroundTasks) -> FileResponse:
+    """Archive /js/fastled/examples/wasm into a zip file and return it."""
+    print("Endpoint accessed: /project/init")
+    # tmp_zip_file = NamedTemporaryFile(delete=False)
+    # tmp_zip_path = Path(tmp_zip_file.name)
+
+    tmp_zip_path = _TEMP_DIR / f"wasm-{make_random_path_string(16)}.zip"
+    zip_example_to_file("wasm", tmp_zip_path)
+
+    # assert tmp_zip_path.exists()
+    if not tmp_zip_path.exists():
+        warnings.warn("Failed to create zip file for wasm example.")
+        raise HTTPException(
+            status_code=500, detail="Failed to create zip file for wasm example."
+        )
+
+    def cleanup() -> None:
+        try:
+            os.unlink(tmp_zip_path)
+        except Exception as e:
+            warnings.warn(f"Error cleaning up: {e}")
+
+    background_tasks.add_task(cleanup)
+    return FileResponse(
+        path=tmp_zip_path,
+        media_type="application/zip",
+        filename="fastled_example.zip",
+        background=background_tasks,
+    )
+
+
+@app.post("/project/init")
+def project_init_example(
+    background_tasks: BackgroundTasks, example: str = Body(...)
+) -> FileResponse:
+    """Archive /js/fastled/examples/{example} into a zip file and return it."""
+    print(f"Endpoint accessed: /project/init/example with example: {example}")
+    if ".." in example:
+        raise HTTPException(status_code=400, detail="Invalid example name.")
+    name = Path("example").name
+    tmp_file_path = _TEMP_DIR / f"{name}-{make_random_path_string(16)}.zip"
+    zip_example_to_file(example, Path(tmp_file_path))
+
+    if not tmp_file_path.exists():
+        warnings.warn(f"Failed to create zip file for {example} example.")
+        raise HTTPException(
+            status_code=500, detail=f"Failed to create zip file for {example} example."
+        )
+
+    def cleanup() -> None:
+        try:
+            os.unlink(tmp_file_path)
+        except Exception as e:
+            warnings.warn(f"Error cleaning up: {e}")
+            raise
+
+    background_tasks.add_task(cleanup)
+    return FileResponse(
+        path=tmp_file_path,
+        media_type="application/zip",
+        filename="fastled_example.zip",
+        background=background_tasks,
+    )
+
+
+@app.get("/info")
+def info_examples() -> dict:
+    """Get a list of examples."""
+    print("Endpoint accessed: /info")
+    uptime = time.time() - START_TIME
+    uptime_fmtd = time.strftime("%H:%M:%S", time.gmtime(uptime))
+    try:
+        build_timestamp = (
+            Path("/image_timestamp.txt").read_text(encoding="utf-8").strip()
+        )
+    except Exception as e:
+        import warnings
+
+        warnings.warn(f"Error reading build timestamp: {e}")
+        build_timestamp = "unknown"
+
+    # ARG FASTLED_VERSION=3.9.11
+    # ENV FASTLED_VERSION=${FASTLED_VERSION}
+
+    fastled_version = os.environ.get("FASTLED_VERSION", "unknown")
+    out = {
+        "examples": _EXAMPLES,
+        "compile_count": COMPILE_COUNT,
+        "compile_failures": COMPILE_FAILURES,
+        "compile_successes": COMPILE_SUCCESSES,
+        "uptime": uptime_fmtd,
+        "build_timestamp": build_timestamp,
+        "fastled_version": fastled_version,
+    }
+    return out
 
 
 # THIS MUST NOT BE ASYNC!!!!
@@ -448,6 +626,7 @@ def compile_wasm(
     background_tasks: BackgroundTasks = BackgroundTasks(),
 ) -> FileResponse:
     """Upload a file into a temporary directory."""
+    print(f"Endpoint accessed: /compile/wasm with file: {file.filename}")
     if build is not None:
         build = build.lower()
 
@@ -498,7 +677,16 @@ def compile_wasm(
         print("extracting zip file...")
         hash_value: str | None = None
         with zipfile.ZipFile(file_path, "r") as zip_ref:
+            # Extract everything first
             zip_ref.extractall(temp_src_dir)
+
+            # Then find and remove any platformio.ini files
+            platform_files = list(Path(temp_src_dir).rglob("*platformio.ini"))
+            if platform_files:
+                warnings.warn(f"Removing platformio.ini files: {platform_files}")
+                for p in platform_files:
+                    p.unlink()
+
             try:
                 hash_value = generate_hash_of_project_files(Path(temp_src_dir))
             except Exception as e:

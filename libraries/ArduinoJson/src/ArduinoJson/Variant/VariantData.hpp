@@ -1,5 +1,5 @@
 // ArduinoJson - https://arduinojson.org
-// Copyright © 2014-2024, Benoit BLANCHON
+// Copyright © 2014-2025, Benoit BLANCHON
 // MIT License
 
 #pragma once
@@ -64,12 +64,11 @@ class VariantData {
         return visit.visit(content_.asObject);
 
       case VariantType::LinkedString:
-        return visit.visit(JsonString(content_.asLinkedString));
+        return visit.visit(JsonString(content_.asLinkedString, true));
 
       case VariantType::OwnedString:
         return visit.visit(JsonString(content_.asOwnedString->data,
-                                      content_.asOwnedString->length,
-                                      JsonString::Copied));
+                                      content_.asOwnedString->length));
 
       case VariantType::RawString:
         return visit.visit(RawString(content_.asOwnedString->data,
@@ -119,14 +118,13 @@ class VariantData {
   }
 
   template <typename T>
-  bool addValue(T&& value, ResourceManager* resources) {
+  bool addValue(const T& value, ResourceManager* resources) {
     auto array = isNull() ? &toArray() : asArray();
-    return detail::ArrayData::addValue(array, detail::forward<T>(value),
-                                       resources);
+    return detail::ArrayData::addValue(array, value, resources);
   }
 
   template <typename T>
-  static bool addValue(VariantData* var, T&& value,
+  static bool addValue(VariantData* var, const T& value,
                        ResourceManager* resources) {
     if (!var)
       return false;
@@ -187,6 +185,7 @@ class VariantData {
 #else
     (void)resources;  // silence warning
 #endif
+    const char* str = nullptr;
     switch (type_) {
       case VariantType::Boolean:
         return static_cast<T>(content_.asBoolean);
@@ -201,8 +200,11 @@ class VariantData {
         return static_cast<T>(extension->asInt64);
 #endif
       case VariantType::LinkedString:
+        str = content_.asLinkedString;
+        break;
       case VariantType::OwnedString:
-        return parseNumber<T>(content_.asOwnedString->data);
+        str = content_.asOwnedString->data;
+        break;
       case VariantType::Float:
         return static_cast<T>(content_.asFloat);
 #if ARDUINOJSON_USE_DOUBLE
@@ -210,8 +212,11 @@ class VariantData {
         return static_cast<T>(extension->asDouble);
 #endif
       default:
-        return 0;
+        return 0.0;
     }
+
+    ARDUINOJSON_ASSERT(str != nullptr);
+    return parseNumber<T>(str);
   }
 
   template <typename T>
@@ -222,6 +227,7 @@ class VariantData {
 #else
     (void)resources;  // silence warning
 #endif
+    const char* str = nullptr;
     switch (type_) {
       case VariantType::Boolean:
         return content_.asBoolean;
@@ -236,9 +242,11 @@ class VariantData {
         return convertNumber<T>(extension->asInt64);
 #endif
       case VariantType::LinkedString:
-        return parseNumber<T>(content_.asLinkedString);
+        str = content_.asLinkedString;
+        break;
       case VariantType::OwnedString:
-        return parseNumber<T>(content_.asOwnedString->data);
+        str = content_.asOwnedString->data;
+        break;
       case VariantType::Float:
         return convertNumber<T>(content_.asFloat);
 #if ARDUINOJSON_USE_DOUBLE
@@ -248,6 +256,9 @@ class VariantData {
       default:
         return 0;
     }
+
+    ARDUINOJSON_ASSERT(str != nullptr);
+    return parseNumber<T>(str);
   }
 
   ObjectData* asObject() {
@@ -262,7 +273,7 @@ class VariantData {
     switch (type_) {
       case VariantType::RawString:
         return JsonString(content_.asOwnedString->data,
-                          content_.asOwnedString->length, JsonString::Copied);
+                          content_.asOwnedString->length);
       default:
         return JsonString();
     }
@@ -271,10 +282,10 @@ class VariantData {
   JsonString asString() const {
     switch (type_) {
       case VariantType::LinkedString:
-        return JsonString(content_.asLinkedString, JsonString::Linked);
+        return JsonString(content_.asLinkedString, true);
       case VariantType::OwnedString:
         return JsonString(content_.asOwnedString->data,
-                          content_.asOwnedString->length, JsonString::Copied);
+                          content_.asOwnedString->length);
       default:
         return JsonString();
     }

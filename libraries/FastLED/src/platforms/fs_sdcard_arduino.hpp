@@ -9,13 +9,15 @@
 #include <SD.h>
 #endif
 
-#include "namespace.h"
-#include "ref.h"
+#include "fl/namespace.h"
+#include "fl/ptr.h"
+#include "fl/file_system.h"
+
 
 FASTLED_NAMESPACE_BEGIN
 
 #ifdef USE_SDFAT
-class SdFatFileHandle : public FileHandle {
+class SdFatFileHandle : public fl::FileHandle {
 private:
     SdFile _file;
     const char* _path;
@@ -37,7 +39,7 @@ public:
     void close() override { _file.close(); }
 };
 #else
-class SDFileHandle : public FileHandle {
+class SDFileHandle : public fl::FileHandle {
 private:
     File _file;
     const char* _path;
@@ -55,12 +57,12 @@ public:
     size_t read(uint8_t *dst, size_t bytesToRead) override { return _file.read(dst, bytesToRead); }
     size_t pos() const override { return _file.position(); }
     const char* path() const override { return _path; }
-    void seek(size_t pos) override { _file.seek(pos); }
+    bool seek(size_t pos) override { return _file.seek(pos); }
     void close() override { _file.close(); }
 };
 #endif
 
-class FsArduino : public FsImpl {
+class FsArduino : public fl::FsImpl {
 private:
     int _cs_pin;
 #ifdef USE_SDFAT
@@ -82,13 +84,13 @@ public:
         // SD library doesn't have an end() method
     }
 
-    FileHandleRef openRead(const char *name) override {
+    fl::FileHandlePtr openRead(const char *name) override {
 #ifdef USE_SDFAT
         SdFile file;
         if (!file.open(name, oflag)) {
-            return Ref<FileHandle>::TakeOwnership(nullptr);
+            return Ptr<FileHandle>::TakeOwnership(nullptr);
         }
-        return Ref<FileHandle>::TakeOwnership(new SdFatFileHandle(std::move(file), name));
+        return Ptr<FileHandle>::TakeOwnership(new SdFatFileHandle(std::move(file), name));
 #else
 
         #ifdef ESP32
@@ -97,13 +99,13 @@ public:
         File file = SD.open(name);
         #endif
         if (!file) {
-            return Ref<FileHandle>::TakeOwnership(nullptr);
+            return fl::Ptr<fl::FileHandle>::TakeOwnership(nullptr);
         }
-        return Ref<FileHandle>::TakeOwnership(new SDFileHandle(std::move(file), name));
+        return fl::Ptr<fl::FileHandle>::TakeOwnership(new SDFileHandle(std::move(file), name));
 #endif
     }
 
-    void close(FileHandleRef file) override {
+    void close(fl::FileHandlePtr file) override {
         // The close operation is now handled in the FileHandle wrapper classes
         // This method is no longer necessary, but we keep it for compatibility
         if (file) {
@@ -112,8 +114,8 @@ public:
     }
 };
 
-inline FsImplRef make_sdcard_filesystem(int cs_pin) {
-    return FsImplRef::Null();
+inline fl::FsImplPtr make_sdcard_filesystem(int cs_pin) {
+    return fl::FsImplPtr::Null();
 }
 
 

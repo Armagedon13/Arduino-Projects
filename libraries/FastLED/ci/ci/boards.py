@@ -8,10 +8,14 @@ from dataclasses import dataclass
 
 # Set to a specific release, we may want to update this in the future.
 ESP32_IDF_5_1_PIOARDUINO = "https://github.com/pioarduino/platform-espressif32/releases/download/51.03.04/platform-espressif32.zip"
+
+# TODO: Upgrade toolkit to 5.3
+ESP32_IDF_5_3_PIOARDUINO = "https://github.com/pioarduino/platform-espressif32/releases/download/53.03.10/platform-espressif32.zip"
 ESP32_IDF_5_1_PIOARDUINO_LATEST = (
     "https://github.com/pioarduino/platform-espressif32.git#develop"
 )
 ESP32_IDF_4_4_LATEST = "platformio/espressif32"
+APOLLO3_2_2_0 = "https://github.com/nigelb/platform-apollo3blue"
 # Top of trunk.
 # ESP32_IDF_5_1_PIOARDUINO = "https://github.com/pioarduino/platform-espressif32"
 
@@ -30,9 +34,12 @@ class Board:
     )
     platform_packages: str | None = None
     framework: str | None = None
+    board_build_mcu: str | None = None
     board_build_core: str | None = None
     board_build_filesystem_size: str | None = None
+    build_flags: list[str] | None = None  # Reserved for future use.
     defines: list[str] | None = None
+    board_partitions: str | None = None  # Reserved for future use.
 
     def get_real_board_name(self) -> str:
         return self.real_board_name if self.real_board_name else self.board_name
@@ -52,6 +59,8 @@ class Board:
             options.append(f"framework={self.framework}")
         if self.board_build_core:
             options.append(f"board_build.core={self.board_build_core}")
+        if self.board_build_mcu:
+            options.append(f"board_build.mcu={self.board_build_mcu}")
         if self.board_build_filesystem_size:
             options.append(
                 f"board_build.filesystem_size={self.board_build_filesystem_size}"
@@ -65,10 +74,40 @@ class Board:
         json_str = json.dumps(self.to_dictionary(), indent=4, sort_keys=True)
         return json_str
 
+    def __hash__(self) -> int:
+        data_str = self.__repr__()
+        return hash(data_str)
+
+
+WEBTARGET = Board(
+    board_name="web",
+)
+
+APOLLO3_RED_BOARD = Board(
+    board_name="apollo3_red",
+    real_board_name="SparkFun_RedBoard_Artemis_ATP",
+    platform=APOLLO3_2_2_0,
+    platform_packages="framework-arduinoapollo3@https://github.com/sparkfun/Arduino_Apollo3#v2.2.0",
+    platform_needs_install=True,
+)
+
+APOLLO3_SPARKFUN_THING_PLUS_EXPLORERABLE = Board(
+    board_name="apollo3_thing_explorable",
+    real_board_name="SparkFun_Thing_Plus_expLoRaBLE",
+    platform=APOLLO3_2_2_0,
+    platform_packages="framework-arduinoapollo3@https://github.com/sparkfun/Arduino_Apollo3#v2.2.0",
+    platform_needs_install=True,
+)
 
 ESP32DEV = Board(
     board_name="esp32dev",
-    platform=ESP32_IDF_5_1_PIOARDUINO_LATEST,
+    platform=ESP32_IDF_5_3_PIOARDUINO,
+)
+
+ESP32DEV_IDF3_3 = Board(
+    board_name="esp32dev_idf33",
+    real_board_name="esp32dev",
+    platform="espressif32@1.11.2",
 )
 
 ESP32DEV_IDF4_4 = Board(
@@ -77,37 +116,63 @@ ESP32DEV_IDF4_4 = Board(
     platform=ESP32_IDF_4_4_LATEST,
 )
 
+GIGA_R1 = Board(
+    board_name="giga_r1",
+    platform="ststm32",
+    framework="arduino",
+    real_board_name="giga_r1_m7",
+)
+
 # ESP01 = Board(
 #     board_name="esp01",
 #     platform=ESP32_IDF_5_1_PIOARDUINO,
 # )
 
 ESP32_C2_DEVKITM_1 = Board(
-    board_name="esp32-c2-devkitm-1",
-    # platform_needs_install=True,  # Install platform package to get the boards
+    board_name="esp32c2",
+    real_board_name="esp32-c2-devkitm-1",
     use_pio_run=True,
-    platform="https://github.com/Jason2866/platform-espressif32.git",  # No support from PIO so we use a fork.
+    platform="https://github.com/Jason2866/platform-espressif32.git#Arduino/IDF5",
+    defines=["CONFIG_IDF_TARGET_ESP32C2=1"],
 )
 
 ESP32_C3_DEVKITM_1 = Board(
-    board_name="esp32-c3-devkitm-1",
-    platform=ESP32_IDF_5_1_PIOARDUINO,
+    board_name="esp32c3",
+    real_board_name="esp32-c3-devkitm-1",
+    platform=ESP32_IDF_5_3_PIOARDUINO,
 )
 
 ESP32_C6_DEVKITC_1 = Board(
-    board_name="esp32-c6-devkitc-1",
-    platform=ESP32_IDF_5_1_PIOARDUINO,
+    board_name="esp32c6",
+    real_board_name="esp32-c6-devkitc-1",
+    platform=ESP32_IDF_5_3_PIOARDUINO,
 )
 
 ESP32_S3_DEVKITC_1 = Board(
-    board_name="esp32-s3-devkitc-1",
-    platform=ESP32_IDF_5_1_PIOARDUINO,
+    board_name="esp32s3",
+    real_board_name="seeed_xiao_esp32s3",  # Seeed Xiao ESP32-S3 has psram.
+    platform=ESP32_IDF_5_3_PIOARDUINO,
+    defines=[
+        "BOARD_HAS_PSRAM",
+    ],
+    build_flags=[  # Reserved for future use.
+        "-mfix-esp32-psram-cache-issue",
+        "-mfix-esp32-psram-cache-strategy=memw",
+    ],
+    board_partitions="huge_app.csv",  # Reserved for future use.
+)
+
+ESP32_S2_DEVKITM_1 = Board(
+    board_name="esp32s2",
+    real_board_name="esp32dev",
+    board_build_mcu="esp32s2",
+    platform=ESP32_IDF_5_3_PIOARDUINO,
 )
 
 ESP32_H2_DEVKITM_1 = Board(
     board_name="esp32-h2-devkitm-1",
     platform_needs_install=True,  # Install platform package to get the boards
-    platform=ESP32_IDF_5_1_PIOARDUINO_LATEST,
+    platform=ESP32_IDF_5_3_PIOARDUINO,
 )
 
 ADA_FEATHER_NRF52840_SENSE = Board(
@@ -167,6 +232,11 @@ MAPLE_MINI = Board(
     platform="ststm32",
 )
 
+ATTINY88 = Board(
+    board_name="attiny88",
+    platform="atmelavr",
+)
+
 # ATtiny1604
 ATTINY1616 = Board(
     board_name="ATtiny1616",
@@ -187,14 +257,13 @@ ESP32DEV_I2S = Board(
     board_name="esp32dev_i2s",
     real_board_name="esp32dev",
     platform=ESP32_IDF_4_4_LATEST,
-    defines=["FASTLED_ESP32_I2S"],
 )
 
 ESP32S3_RMT51 = Board(
     board_name="esp32rmt_51",
     real_board_name="esp32-s3-devkitc-1",
     platform_needs_install=True,
-    platform=ESP32_IDF_5_1_PIOARDUINO,
+    platform=ESP32_IDF_5_3_PIOARDUINO,
     defines=[
         "FASTLED_RMT5=1",
     ],
@@ -202,13 +271,18 @@ ESP32S3_RMT51 = Board(
 
 
 ALL: list[Board] = [
+    WEBTARGET,
+    APOLLO3_RED_BOARD,
+    APOLLO3_SPARKFUN_THING_PLUS_EXPLORERABLE,
     ESP32DEV,
+    ESP32DEV_IDF3_3,
     ESP32DEV_IDF4_4,
     ESP32DEV_I2S,
     # ESP01,
     ESP32_C2_DEVKITM_1,
     ESP32_C3_DEVKITM_1,
     ESP32_C6_DEVKITC_1,
+    ESP32_S2_DEVKITM_1,
     ESP32_S3_DEVKITC_1,
     ESP32_H2_DEVKITM_1,
     ADA_FEATHER_NRF52840_SENSE,
@@ -222,6 +296,7 @@ ALL: list[Board] = [
     BLUEPILL,
     MAPLE_MINI,
     NRF52840,
+    GIGA_R1,
 ]
 
 

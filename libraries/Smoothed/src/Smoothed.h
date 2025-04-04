@@ -14,7 +14,7 @@
 template <typename T>
 class Smoothed {
   private:
-    byte smoothMode;
+    byte smoothMode = SMOOTHED_EXPONENTIAL;
     uint16_t smoothReadingsFactor = 10; // The smoothing factor. In average mode, this is the number of readings to average. 
     uint16_t smoothReadingsPosition = 0; // Current position in the array
     uint16_t smoothReadingsNum = 0; // Number of readings currently being averaged
@@ -22,7 +22,7 @@ class Smoothed {
   public:
     Smoothed();
     ~Smoothed(); // Destructor to clean up when class instance killed
-    bool begin (byte smoothMode, uint16_t smoothFactor = 10);
+    bool begin (byte smoothMode = SMOOTHED_EXPONENTIAL, uint16_t smoothFactor = 10);
     bool add (T newReading);
     T get ();
     T getLast ();
@@ -101,7 +101,7 @@ bool Smoothed<T>::add (T newReading) {
         smoothReadingsNum++;
         smoothReading[0] = newReading;
       } else {
-        smoothReading[0] = (T)(((long double)smoothReadingsFactor/100) * newReading + (1 - ((long double)smoothReadingsFactor/100)) * smoothReading[0]);
+        smoothReading[0] = (T)(((long double)1/smoothReadingsFactor) * newReading + (1 - ((long double)1/smoothReadingsFactor)) * smoothReading[0]);
       }
 
       smoothReading[1] = newReading; // Update the last value added
@@ -184,16 +184,20 @@ bool Smoothed<T>::clear () {
       for (int thisReading = 0; thisReading < smoothReadingsNum; thisReading++) {
         smoothReading[thisReading] = 0;
       }
+      
+      return true;
       break;
 
     case SMOOTHED_EXPONENTIAL : // SMOOTHED_EXPONENTIAL
       smoothReadingsNum = 0;
 	  smoothReading[0] = 0;
       smoothReading[1] = 0;
+      return true;
       break;
 
     default : 
       return false;
       break;
-  }         
+  }
+  return false;
 }

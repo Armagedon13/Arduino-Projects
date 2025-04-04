@@ -1,8 +1,5 @@
 #pragma once
 
+#warning "This header is deprecated. Please use force_inline.h, this header will go away in the version 4.0."
 
-#ifdef FASTLED_NO_FORCE_INLINE
-#define FASTLED_FORCE_INLINE inline
-#else
-#define FASTLED_FORCE_INLINE __attribute__((always_inline)) inline
-#endif
+#include "fl/force_inline.h"

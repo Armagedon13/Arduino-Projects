@@ -10,19 +10,29 @@
    (C) Voidstar Lab 2021
 */
 
+#if defined(__AVR__) || defined(ARDUINO_ARCH_AVR) || defined(ARDUINO_ARCH_ESP8266) || defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_ARCH_RP2350) || defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_TEENSYLC)
+// Avr is not powerful enough.
+// Other platforms have weird issues. Will revisit this later.
+void setup() {}
+void loop() {}
+#else
+
 #include "mapping.h"
 #include "net.h"
 #include "ripple.h"
 #include <FastLED.h>
 #include "detail.h"
-#include "screenmap.h"
-#include "math_macros.h"
-#include "json.h"
-#include "ui.h"
-#include "fixed_map.h"
+#include "fl/screenmap.h"
+#include "fl/math_macros.h"
+#include "fl/json.h"
+#include "fl/ui.h"
+#include "fl/map.h"
 
 #include "screenmap.json.h"
 #include "fl/str.h"
+
+
+using namespace fl;
 
 enum {
     BlackStrip = 0,
@@ -61,7 +71,7 @@ byte ledColors[40][14][3]; // LED buffer - each ripple writes to this, then we
 //float decay = 0.97; // Multiply all LED's by this amount each tick to create
                     // fancy fading tails
 
-Slider decay("decay", .97f, .8, 1.0, .01);
+UISlider sliderDecay("decay", .97f, .8, 1.0, .01);
 
 // These ripples are endlessly reused so we don't need to do any memory
 // management
@@ -104,8 +114,8 @@ float gyroX, gyroY, gyroZ;
 // We'll fire automatic pulses
 #define randomPulsesEnabled true // Fire random rainbow pulses from random nodes
 #define cubePulsesEnabled true   // Draw cubes at random nodes
-Checkbox starburstPulsesEnabled("Starburst Pulses", true);
-Checkbox simulatedBiometricsEnabled("Simulated Biometrics", true);
+UICheckbox starburstPulsesEnabled("Starburst Pulses", true);
+UICheckbox simulatedBiometricsEnabled("Simulated Biometrics", true);
 
 #define autoPulseTimeout                                                       \
     5000 // If no heartbeat is received in this many ms, begin firing
@@ -139,13 +149,15 @@ bool isNodeOnBorder(byte node) {
     return false;
 }
 
-Checkbox allWhite("All White", false);
+UITitle title("Chromancer");
+UIDescription description("Take 6 seconds to boot up. Chromancer is a wall-mounted hexagonal LED display that originally reacted to biometric data from an EmotiBit sensor. It visualizes your heartbeat, skin temperature, and movement in real-time. Chromancer also has a few built-in effects that can be triggered with the push of a button. Enjoy!");
+UICheckbox allWhite("All White", false);
 
-Button simulatedHeartbeat("Simulated Heartbeat");
-Button triggerStarburst("Trigger Starburst"); 
-Button triggerRainbowCube("Rainbow Cube");
-Button triggerBorderWave("Border Wave");
-Button triggerSpiral("Spiral Wave");
+UIButton simulatedHeartbeat("Simulated Heartbeat");
+UIButton triggerStarburst("Trigger Starburst"); 
+UIButton triggerRainbowCube("Rainbow Cube");
+UIButton triggerBorderWave("Border Wave");
+UIButton triggerSpiral("Spiral Wave");
 bool wasHeartbeatClicked = false;
 bool wasStarburstClicked = false;
 bool wasRainbowCubeClicked = false;
@@ -165,7 +177,7 @@ void setup() {
 
     printf("Parsed %d segment maps\n", int(segmentMaps.size()));
     for (auto kv : segmentMaps) {
-        Serial.print(kv.first);
+        Serial.print(kv.first.c_str());
         Serial.print(" ");
         Serial.println(kv.second.getLength());
     } 
@@ -209,7 +221,7 @@ void loop() {
     for (int strip = 0; strip < 40; strip++) {
         for (int led = 0; led < 14; led++) {
             for (int i = 0; i < 3; i++) {
-                ledColors[strip][led][i] *= decay.value();
+                ledColors[strip][led][i] *= sliderDecay.value();
             }
         }
     }
@@ -553,3 +565,5 @@ void loop() {
     //  Serial.print("Benchmark: ");
     //  Serial.println(millis() - benchmark);
 }
+
+#endif  // __AVR__

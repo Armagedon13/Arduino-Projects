@@ -2,16 +2,16 @@
 
 #include <stdint.h>
 
-#include "namespace.h"
-#include "xmap.h"
+#include "fl/namespace.h"
+#include "fl/xmap.h"
 #include "fx/fx.h"
 
-FASTLED_NAMESPACE_BEGIN
+namespace fl {
 
 // Abstract base class for 1D effects that use a strip of LEDs.
-class FxStrip : public Fx {
+class Fx1d : public Fx {
   public:
-    FxStrip(uint16_t numLeds): Fx(numLeds), mXMap(numLeds, false) {}
+    Fx1d(uint16_t numLeds): Fx(numLeds), mXMap(numLeds, false) {}
     void setXmap(const XMap& xMap) {
       mXMap = xMap;
     }
@@ -24,5 +24,5 @@ protected:
     XMap mXMap;
 };
 
-FASTLED_NAMESPACE_END
+}  // namespace fl
 

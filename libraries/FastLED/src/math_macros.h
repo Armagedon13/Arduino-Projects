@@ -1,17 +1,5 @@
 #pragma once
 
-#ifndef MAX
-#define MAX(a,b) ((a)>(b)?(a):(b))
-#endif
+#warning "This header is deprecated. Please use math_macros.h, this header will go away in the version 4.0."
 
-#ifndef MIN
-#define MIN(a,b) ((a)<(b)?(a):(b))
-#endif
-
-#ifndef ABS
-#define ABS(x) ((x)>0?(x):-(x))
-#endif
-
-#ifndef PI
-#define PI 3.1415926535897932384626433832795
-#endif
+#include "fl/math_macros.h"

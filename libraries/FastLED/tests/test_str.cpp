@@ -1,14 +1,17 @@
 
 // g++ --std=c++11 test.cpp
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "test.h"
 
-#include "doctest.h"
+#include "test.h"
 #include "fl/str.h"
-#include "fixed_vector.h"
+#include "fl/vector.h"
+#include "crgb.h"
+#include <sstream>
 
-#include "namespace.h"
-FASTLED_USING_NAMESPACE
+#include "fl/namespace.h"
+
+using namespace fl;
 
 TEST_CASE("Str basic operations") {
     SUBCASE("Construction and assignment") {
@@ -52,6 +55,12 @@ TEST_CASE("Str basic operations") {
         CHECK(strcmp(s.c_str(), "hello world") == 0);
     }
 
+    SUBCASE("CRGB to Str") {
+        CRGB c(255, 0, 0);
+        Str s = c.toString();
+        CHECK_EQ(s, "CRGB(255,0,0)");
+    }
+
     SUBCASE("Copy-on-write behavior") {
         Str s1("hello");
         Str s2 = s1;
@@ -61,8 +70,28 @@ TEST_CASE("Str basic operations") {
     }
 }
 
-TEST_CASE("Str with FixedVector") {
-    FixedVector<Str, 10> vec;
+
+TEST_CASE("Str::reserve") {
+    Str s;
+    s.reserve(10);
+    CHECK(s.size() == 0);
+    CHECK(s.capacity() >= 10);
+
+    s.reserve(5);
+    CHECK(s.size() == 0);
+    CHECK(s.capacity() >= 10);
+
+    s.reserve(500);
+    CHECK(s.size() == 0);
+    CHECK(s.capacity() >= 500);
+    // s << "hello";
+    s.append("hello");
+    CHECK(s.size() == 5);
+    CHECK_EQ(s, "hello");
+}
+
+TEST_CASE("Str with fl::FixedVector") {
+    fl::FixedVector<Str, 10> vec;
     vec.push_back(Str("hello"));
     vec.push_back(Str("world"));
 

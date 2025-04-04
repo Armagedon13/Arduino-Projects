@@ -1,14 +1,14 @@
 
 // g++ --std=c++11 test.cpp
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "test.h"
 
-#include "doctest.h"
+#include "test.h"
 #include "fx/frame.h"
 #include <cstdlib>
-#include "allocator.h"
+#include "fl/allocator.h"
 
-#include "namespace.h"
+#include "fl/namespace.h"
 FASTLED_USING_NAMESPACE
 
 namespace {
@@ -29,8 +29,8 @@ TEST_CASE("test frame custom allocator") {
     // Set our custom allocator
     SetLargeBlockAllocator(custom_malloc, custom_free);
     
-    FrameRef frame = FrameRef::New(100, true);  // 100 pixels with alpha channel
-    CHECK(allocation_count == 2);  // One for RGB, one for alpha
+    FramePtr frame = FramePtr::New(100);  // 100 pixels.
+    CHECK(allocation_count == 1);  // One for RGB.
     frame.reset();
 
     // Frame should be destroyed here

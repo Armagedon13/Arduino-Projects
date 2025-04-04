@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <string>
 
-#include "namespace.h"
+#include "fl/namespace.h"
 
 FASTLED_USING_NAMESPACE
 
@@ -20,7 +20,7 @@ using std::min;
 
 namespace fl {
 class Str;
-long map(long x, long in_min, long in_max, long out_min, long out_max) {
+inline long map(long x, long in_min, long in_max, long out_min, long out_max) {
     const long run = in_max - in_min;
     if (run == 0) {
         return 0; // AVR returns -1, SAM returns 0
@@ -91,8 +91,21 @@ DEFINE_PRINT_HELPER(int64_t, "%ld");
 DEFINE_PRINT_HELPER(int32_t, "%d");
 DEFINE_PRINT_HELPER(int16_t, "%d");
 DEFINE_PRINT_HELPER(int8_t, "%d");
+DEFINE_PRINT_HELPER(bool, "%d");
 DEFINE_PRINT_HELPER_EXT(std::string, "%s", val.c_str());
 DEFINE_PRINT_HELPER_EXT(fl::Str, "%s", val.c_str());
+
+#ifdef __EMSCRIPTEN__
+DEFINE_PRINT_HELPER(unsigned long, "%lu");  // Not sure why this is needed in emscripten
+#endif
+
+#define A0 0
+#define A1 1
+#define A2 2
+#define A3 3
+#define A4 4
+#define A5 5
+
 
 // gcc pop options
 #pragma GCC diagnostic pop
@@ -110,16 +123,21 @@ struct SerialEmulation {
     void write(const char *s, size_t n) { fwrite(s, 1, n, stdout); }
     void flush() {}
     void end() {}
+    uint8_t peek() { return 0; }
 };
 
 #define LED_BUILTIN 13
 #define HIGH 1
 #define LOW 0
-void digitalWrite(int, int) {}
-void analogWrite(int, int) {}
-int digitalRead(int) { return LOW; }
+#define INPUT 0
+#define OUTPUT 1
+#define INPUT_PULLUP 2
 
-void pinMode(int, int) {}
+
+inline void digitalWrite(int, int) {}
+inline void analogWrite(int, int) {}
+inline int digitalRead(int) { return LOW; }
+inline void pinMode(int, int) {}
 
 // avr flash memory macro is disabled.
 #ifdef F
@@ -136,7 +154,9 @@ void pinMode(int, int) {}
 #define FL_PGM_READ_PTR_NEAR(addr) (*(addr))
 typedef unsigned char byte;
 
-SerialEmulation Serial;
-SerialEmulation Serial1;
-SerialEmulation Serial2;
-SerialEmulation Serial3;
+extern SerialEmulation Serial;
+extern SerialEmulation Serial1;
+extern SerialEmulation Serial2;
+extern SerialEmulation Serial3;
+typedef SerialEmulation HardwareSerial;
+typedef SerialEmulation SoftwareSerial;

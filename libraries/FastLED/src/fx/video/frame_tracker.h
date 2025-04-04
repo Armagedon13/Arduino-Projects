@@ -2,13 +2,13 @@
 
 #include <stdint.h>
 
-#include "namespace.h"
+#include "fl/namespace.h"
 
 // #include <iostream>
 
 // using namespace std;
 
-FASTLED_NAMESPACE_BEGIN
+namespace fl {
 
 // Tracks the current frame number based on the time elapsed since the start of the animation.
 class FrameTracker {
@@ -21,11 +21,15 @@ class FrameTracker {
     // Given a frame number, returns the exact timestamp in milliseconds that the frame should be displayed.
     uint32_t get_exact_timestamp_ms(uint32_t frameNumber) const;
 
+    
+    uint32_t microsecondsPerFrame() const {
+        return mMicrosSecondsPerInterval;
+    }
+
   private:
     uint32_t mMicrosSecondsPerInterval;
-    uint32_t mStartTime;
-    bool mIsPaused;
+    uint32_t mStartTime = 0;
 };
 
 
-FASTLED_NAMESPACE_END
+}  // namespace fl

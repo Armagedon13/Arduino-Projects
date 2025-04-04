@@ -1,12 +1,12 @@
 
 // g++ --std=c++11 test.cpp
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "test.h"
 
-#include "doctest.h"
-#include "ui.h"
+#include "test.h"
+#include "fl/ui.h"
 
-#include "namespace.h"
+#include "fl/namespace.h"
 FASTLED_USING_NAMESPACE
 
 TEST_CASE("compile ui test") {

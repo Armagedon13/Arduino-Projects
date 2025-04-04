@@ -6,25 +6,25 @@
 #include <memory>
 #include <map>
 
-#include "events.h"
-#include "singleton.h"
+#include "platforms/wasm/engine_listener.h"
+#include "fl/singleton.h"
 
 
-#include "fixed_set.h"
-#include "fixed_map.h"
-#include "ref.h"
+#include "fl/set.h"
+#include "fl/map.h"
+#include "fl/ptr.h"
 
 #include "platforms/wasm/js.h"
-#include "json.h"
+#include "fl/json.h"
 
 FASTLED_NAMESPACE_BEGIN
 
 class jsUiInternal;
 
-class jsUiManager : EngineEvents::Listener {
+class jsUiManager : fl::EngineEvents::Listener {
   public:
-    static void addComponent(WeakRef<jsUiInternal> component);
-    static void removeComponent(WeakRef<jsUiInternal> component);
+    static void addComponent(fl::WeakPtr<jsUiInternal> component);
+    static void removeComponent(fl::WeakPtr<jsUiInternal> component);
 
     // Called from the JS engine.
     static void jsUpdateUiComponents(const std::string& jsonStr) { updateUiComponents(jsonStr.c_str()); }
@@ -33,13 +33,13 @@ class jsUiManager : EngineEvents::Listener {
 
   private:
     static void executeUiUpdates(const FLArduinoJson::JsonDocument& doc);
-    typedef FixedSet<WeakRef<jsUiInternal>, 64> jsUIRefSet;
-    friend class Singleton<jsUiManager>;
+    typedef fl::FixedSet<fl::WeakPtr<jsUiInternal>, 64> jsUIRefSet;
+    friend class fl::Singleton<jsUiManager>;
     jsUiManager() {
-        EngineEvents::addListener(this);
+        fl::EngineEvents::addListener(this);
     }
     ~jsUiManager() {
-        EngineEvents::removeListener(this);
+        fl::EngineEvents::removeListener(this);
     }
 
     void onPlatformPreLoop() override {
@@ -59,12 +59,12 @@ class jsUiManager : EngineEvents::Listener {
             toJson(jarray);
             fl::Str buff;
             FLArduinoJson::serializeJson(doc, buff);
-            updateJs(buff.c_str());
+            fl::updateJs(buff.c_str());
             mItemsAdded = false;
         }
     }
 
-    std::vector<jsUiInternalRef> getComponents();
+    std::vector<jsUiInternalPtr> getComponents();
     void toJson(FLArduinoJson::JsonArray& json);
 
     jsUIRefSet mComponents;

@@ -2,12 +2,12 @@
 #define __INC_CLOCKLESS_BLOCK_ESP8266_H
 
 #include <stdint.h>
-#include "namespace.h"
+#include "fl/namespace.h"
 #include "clock_cycles.h"
 #include "esp_intr_alloc.h"
 #include "eorder.h"
 #include "transpose8x1_noinline.h"
-#include "force_inline.h"
+#include "fl/force_inline.h"
 
 #define FASTLED_HAS_BLOCKLESS 1
 

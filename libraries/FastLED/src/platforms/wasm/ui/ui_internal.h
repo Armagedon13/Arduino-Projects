@@ -6,21 +6,21 @@
 #include <mutex>
 #include <stdio.h>
 
-#include "namespace.h"
-#include "callback.h"
-#include "json.h"
-#include "ref.h"
+#include "fl/namespace.h"
+#include "fl/callback.h"
+#include "fl/json.h"
+#include "fl/ptr.h"
 #include "fl/str.h"
 
 FASTLED_NAMESPACE_BEGIN
 
-FASTLED_SMART_REF(jsUiInternal);
+FASTLED_SMART_PTR(jsUiInternal);
 
-class jsUiInternal : public Referent {
+class jsUiInternal : public fl::Referent {
 public:
 
-    using UpdateFunction = Callback<const FLArduinoJson::JsonVariantConst&>;
-    using ToJsonFunction = Callback<FLArduinoJson::JsonObject&>;
+    using UpdateFunction = fl::Callback<const FLArduinoJson::JsonVariantConst&>;
+    using ToJsonFunction = fl::Callback<FLArduinoJson::JsonObject&>;
 
     jsUiInternal(const fl::Str& name, UpdateFunction updateFunc, ToJsonFunction toJsonFunc);
     ~jsUiInternal() {

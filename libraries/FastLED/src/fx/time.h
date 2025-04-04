@@ -2,18 +2,18 @@
 
 #include <stdint.h>
 
-#include "ref.h"
-#include "callback.h"
-#include "namespace.h"
+#include "fl/ptr.h"
+#include "fl/callback.h"
+#include "fl/namespace.h"
 
-FASTLED_NAMESPACE_BEGIN
+namespace fl {
 
-FASTLED_SMART_REF(TimeFunction);
-FASTLED_SMART_REF(TimeScale);
+FASTLED_SMART_PTR(TimeFunction);
+FASTLED_SMART_PTR(TimeScale);
 
 
 // Interface for time generation and time manipulation.
-class TimeFunction: public Referent {
+class TimeFunction: public fl::Referent {
   public:
     virtual ~TimeFunction() {}
     virtual uint32_t update(uint32_t timeNow) = 0;  // Inputs the real clock time and outputs the virtual time.
@@ -32,12 +32,15 @@ class TimeScale: public TimeFunction {
     uint32_t update(uint32_t timeNow) override;
     uint32_t time() const override;
     void reset(uint32_t realTimeNow) override;
+    void pause(uint32_t now);
+    void resume(uint32_t now);
   private:
     void applyExact(uint32_t timeNow);
-    uint32_t mRealTime = 0;
     uint32_t mLastRealTime = 0;
     uint32_t mStartTime = 0;
+    uint32_t mRelativeTime = 0;
     float mTimeScale = 1.0f;
+    uint32_t mPauseTime = 0;
 };
 
-FASTLED_NAMESPACE_END
+}  // namespace fl

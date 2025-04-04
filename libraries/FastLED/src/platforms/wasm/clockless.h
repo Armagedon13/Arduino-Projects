@@ -5,10 +5,10 @@
 
 #include "pixel_controller.h"
 #include "pixel_iterator.h"
-#include "namespace.h"
+#include "fl/namespace.h"
 #include "eorder.h"
 #include "crgb.h"
-#include "singleton.h"
+#include "fl/singleton.h"
 
 #include "active_strip_data.h"
 
@@ -34,7 +34,7 @@ public:
 protected:
 	virtual void showPixels(PixelController<RGB_ORDER> & pixels) {
 		mRgb.clear();
-		ActiveStripData& ch_data = Singleton<ActiveStripData>::instance();
+		ActiveStripData& ch_data = fl::Singleton<ActiveStripData>::instance();
 		pixels.disableColorAdjustment();
 		PixelController<RGB> pixels_rgb = pixels;  // Converts to RGB pixels
 		auto iterator = pixels_rgb.as_iterator(RgbwInvalid());

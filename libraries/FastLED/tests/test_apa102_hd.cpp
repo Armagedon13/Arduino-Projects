@@ -1,9 +1,9 @@
 
 // g++ --std=c++11 test.cpp
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "test.h"
 
-#include "doctest.h"
+#include "test.h"
 #include "FastLED.h"
 #include "five_bit_hd_gamma.h"
 #include "assert.h"
@@ -16,8 +16,118 @@
 #include <sstream>
 
 #include "crgb.h"
-#include "namespace.h"
+#include "fl/namespace.h"
 FASTLED_USING_NAMESPACE
+
+TEST_CASE("five_bit_bitshift") {
+  const uint16_t test_data[][2][4] = {
+    { // test case
+      //r g  b  brightness
+      {0, 0, 0, 0}, // input
+      {0, 0, 0, 0}, // output
+    },
+    { // 0 brightness brings all colors down to 0
+      {0xffff, 0xffff, 0xffff, 0},
+      {0,      0,      0,      0},
+    },
+    { // color values below 8 become 0 at max brightness
+      {8, 7, 0, 255},
+      {1, 0, 0, 1},
+    },
+    {
+      {0xffff, 0x00f0, 0x000f, 0x01},
+      {0x11,   0x00,   0x00,   0x01},
+    },
+    {
+      {0x0100, 0x00f0, 0x000f, 0xff},
+      {0x08,   0x08,   0x00,   0x03},
+    },
+    {
+      {0x2000, 0x1000, 0x0f00, 0x20},
+      {0x20,   0x10,   0x0f,   0x03},
+    },
+    {
+      {0xffff, 0x8000, 0x4000, 0x40},
+      {0x81,   0x41,   0x20,   0x0f},
+    },
+    {
+      {0xffff, 0x8000, 0x4000, 0x80},
+      {0x81,   0x41,   0x20,   0x1f},
+    },
+    {
+      {0xffff, 0xffff, 0xffff, 0xff},
+      {0xff,   0xff,   0xff,   0x1f},
+    },
+  };
+
+  for (const auto& data : test_data) {
+    CRGB out_color;
+    uint8_t out_brightness;
+    five_bit_bitshift(data[0][0], data[0][1], data[0][2], data[0][3], &out_color, &out_brightness);
+    INFO("input  red ", data[0][0], " green ", data[0][1], " blue ", data[0][2], " brightness ", data[0][3]);
+    INFO("output red ", out_color.r, " green ", out_color.g, " blue ", out_color.b, " brightness ", out_brightness);
+    CHECK_EQ(out_color.r, data[1][0]);
+    CHECK_EQ(out_color.g, data[1][1]);
+    CHECK_EQ(out_color.b, data[1][2]);
+    CHECK_EQ(out_brightness, data[1][3]);
+  }
+}
+
+TEST_CASE("__builtin_five_bit_hd_gamma_bitshift") {
+  // NOTE: FASTLED_FIVE_BIT_HD_GAMMA_FUNCTION_2_8 is defined for this test in CMakeLists.txt
+
+  const uint8_t test_data[][2][4] = {
+    { // test case
+      //r g  b  brightness
+      {0, 0, 0, 0}, // input
+      {0, 0, 0, 0}, // output
+    },
+    { // 0 brightness brings all colors down to 0
+      {255, 255, 255, 0},
+      {0,   0,   0,   0},
+    },
+    {
+      {16, 16, 16, 16},
+      {0,  0,  0,  1},
+    },
+    {
+      {64, 64, 64, 8},
+      {4,  4,  4,  1},
+    },
+    {
+      {255, 127, 43, 1},
+      {17,  3,   0,  1},
+    },
+    {
+      {255, 127, 43, 1},
+      {17,  3,   0,  1},
+    },
+    {
+      {255, 127, 43, 64},
+      {129, 21,  1,  15},
+    },
+    {
+      {255, 127, 43, 255},
+      {255, 42,  3,  31},
+    },
+    {
+      {255, 255, 255, 255},
+      {255, 255, 255, 31},
+    },
+  };
+
+  for (const auto& data : test_data) {
+    CRGB out_color;
+    uint8_t out_brightness;
+    __builtin_five_bit_hd_gamma_bitshift(CRGB(data[0][0], data[0][1], data[0][2]), CRGB(255, 255, 255), data[0][3], &out_color, &out_brightness);
+    INFO("input  red ", data[0][0], " green ", data[0][1], " blue ", data[0][2], " brightness ", data[0][3]);
+    INFO("output red ", out_color.r, " green ", out_color.g, " blue ", out_color.b, " brightness ", out_brightness);
+    CHECK_EQ(out_color.r, data[1][0]);
+    CHECK_EQ(out_color.g, data[1][1]);
+    CHECK_EQ(out_color.b, data[1][2]);
+    CHECK_EQ(out_brightness, data[1][3]);
+  }
+}
 
 #define CHECK_NEAR(a, b, c) CHECK_LT(abs(a - b), c)
 
@@ -40,23 +150,18 @@ struct Power {
   uint8_t power_5bit_u8;
 };
 
-float power_diff(Power power) {
+static float power_diff(Power power) {
   return abs(power.power - power.power_5bit);
 }
 
-uint16_t mymap(uint32_t x, uint32_t in_min, uint32_t in_max, uint32_t out_min, uint32_t out_max) {
-  return static_cast<uint16_t>(
-     (x - in_min) * (out_max - out_min) / static_cast<double>(in_max - in_min) + out_min
-  );
-}
 
-float power_rgb(CRGB color, uint8_t brightness) {
+static float power_rgb(CRGB color, uint8_t brightness) {
   color *= brightness;
   float out = color.r / 255.f + color.g / 255.f + color.b / 255.f;
   return out / 3.0f;
 }
 
-float compute_power_5bit(CRGB color, uint8_t power_5bit, uint8_t brightness) {
+static float compute_power_5bit(CRGB color, uint8_t power_5bit, uint8_t brightness) {
   assert(power_5bit <= 31);
   float rgb_pow = power_rgb(color, brightness);
   float brightness_pow = (power_5bit) / 31.0f;
@@ -66,7 +171,7 @@ float compute_power_5bit(CRGB color, uint8_t power_5bit, uint8_t brightness) {
 }
 
 
-float compute_power_apa102(CRGB color, uint8_t brightness, uint8_t* power_5bit) {
+static float compute_power_apa102(CRGB color, uint8_t brightness, uint8_t* power_5bit) {
   uint16_t r16 = map8_to_16(color.r);
   uint16_t g16 = map8_to_16(color.g);
   uint16_t b16 = map8_to_16(color.b);
@@ -78,19 +183,19 @@ float compute_power_apa102(CRGB color, uint8_t brightness, uint8_t* power_5bit) 
 }
 
 
-float compute_power_ws2812(CRGB color, uint8_t brightness) {
+static float compute_power_ws2812(CRGB color, uint8_t brightness) {
   float power = power_rgb(color, brightness);
   return power;
 }
 
-Power compute_power(uint8_t brightness8, CRGB color) {
+static Power compute_power(uint8_t brightness8, CRGB color) {
   uint8_t power_5bit_u8;
   float power_5bit = compute_power_apa102(color, brightness8, &power_5bit_u8);
   float power_rgb = compute_power_ws2812(color, brightness8);
   return {power_rgb, power_5bit, power_5bit_u8};
 }
 
-void make_random(CRGB* color, uint8_t* brightness) {
+static void make_random(CRGB* color, uint8_t* brightness) {
   color->r = rand() % 256;
   color->g = rand() % 256;
   color->b = rand() % 256;
@@ -101,23 +206,6 @@ struct Data {
   CRGB color;
   uint8_t brightness;
 };
-
-
-
-
-void problematic_test(CRGB color, uint8_t brightness) {
-    Power p = compute_power(brightness, color);
-    std::ostringstream oss;
-
-    // print out the power
-    oss << std::endl;
-    oss << "power: " << p.power << " power_5bit: " << p.power_5bit << " power_5bit_u8: " << int(p.power_5bit_u8) << std::endl;
-    oss << "brightness: " << int(brightness) << " color: R: " << int(color.r) << " G: " << int(color.g) << " B: " << int(color.b) << std::endl;
-    oss << "compute_power_5bit: " << compute_power_5bit(color, p.power_5bit_u8, brightness) << std::endl;
-    oss << "Power RGB: " << power_rgb(color, brightness) << std::endl;
-    oss << "Diff: " << power_diff(p) << std::endl;
-    std::cout << oss.str() << std::endl;
-}
 
 
 TEST_CASE("five_bit_hd_gamma_bitshift functionality") {

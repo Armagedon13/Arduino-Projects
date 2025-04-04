@@ -7,7 +7,8 @@
 #include "FastLED.h"
 #include "pixeltypes.h"
 #include "fastled_progmem.h"
-#include "xymap.h"
+#include "fl/xymap.h"
+#include "fl/deprecated.h"
 
 #if !defined(FASTLED_USE_32_BIT_GRADIENT_FILL)
   #if defined(__AVR__)
@@ -17,6 +18,8 @@
   #endif
 #endif
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wcast-align"
 
 /// Defines a static RGB palette very compactly using a series
 /// of connected color gradients.
@@ -546,7 +549,11 @@ void blur1d( CRGB* leds, uint16_t numLeds, fract8 blur_amount);
 /// @param width the width of the matrix
 /// @param height the height of the matrix
 /// @param blur_amount the amount of blur to apply
-void blur2d( CRGB* leds, uint8_t width, uint8_t height, fract8 blur_amount, const XYMap& xymap);
+void blur2d( CRGB* leds, uint8_t width, uint8_t height, fract8 blur_amount, const fl::XYMap& xymap);
+
+/// Legacy version of blur2d, which does not require an XYMap but instead implicitly binds to XY() function.
+/// If you are hitting a linker error here, then use blur2d(..., const fl::XYMap& xymap) instead.
+void blur2d( CRGB* leds, uint8_t width, uint8_t height, fract8 blur_amount) FASTLED_DEPRECATED("Use blur2d(..., const fl::XYMap& xymap) instead");
 
 
 /// Perform a blur1d() on every row of a rectangular matrix
@@ -555,11 +562,11 @@ void blur2d( CRGB* leds, uint8_t width, uint8_t height, fract8 blur_amount, cons
 /// @param width the width of the matrix
 /// @param height the height of the matrix
 /// @param blur_amount the amount of blur to apply
-void blurRows( CRGB* leds, uint8_t width, uint8_t height, fract8 blur_amount, const XYMap& xymap);
+void blurRows( CRGB* leds, uint8_t width, uint8_t height, fract8 blur_amount, const fl::XYMap& xymap);
 
 /// Perform a blur1d() on every column of a rectangular matrix
 /// @copydetails blurRows()
-void blurColumns(CRGB* leds, uint8_t width, uint8_t height, fract8 blur_amount, const XYMap& xymap);
+void blurColumns(CRGB* leds, uint8_t width, uint8_t height, fract8 blur_amount, const fl::XYMap& xymap);
 
 /// @} ColorBlurs
 
@@ -693,21 +700,21 @@ typedef TDynamicRGBGradientPalette_bytes TDynamicRGBGradientPaletteRef;  ///< Al
 /// @param srcpal16 the source palette to upscale
 /// @param destpal256 the destination palette for the upscaled data
 void UpscalePalette(const class CRGBPalette16& srcpal16, class CRGBPalette256& destpal256);
-/// @copydoc UpscalePalette(const struct CRGBPalette16&, struct CRGBPalette256&)
+/// @copydoc UpscalePalette(const class CRGBPalette16&, class CRGBPalette256&)
 void UpscalePalette(const class CHSVPalette16& srcpal16, class CHSVPalette256& destpal256);
 
 /// Convert a 16-entry palette to a 32-entry palette
 /// @param srcpal16 the source palette to upscale
 /// @param destpal32 the destination palette for the upscaled data
 void UpscalePalette(const class CRGBPalette16& srcpal16, class CRGBPalette32& destpal32);
-/// @copydoc UpscalePalette(const struct CRGBPalette16&, struct CRGBPalette32&)
+/// @copydoc UpscalePalette(const class CRGBPalette16&, class CRGBPalette32&)
 void UpscalePalette(const class CHSVPalette16& srcpal16, class CHSVPalette32& destpal32);
 
 /// Convert a 32-entry palette to a 256-entry palette
 /// @param srcpal32 the source palette to upscale
 /// @param destpal256 the destination palette for the upscaled data
 void UpscalePalette(const class CRGBPalette32& srcpal32, class CRGBPalette256& destpal256);
-/// @copydoc UpscalePalette(const struct CRGBPalette32&, class CRGBPalette256&)
+/// @copydoc UpscalePalette(const class CRGBPalette32&, class CRGBPalette256&)
 void UpscalePalette(const class CHSVPalette32& srcpal32, class CHSVPalette256& destpal256);
 
 /// @} PaletteUpscale
@@ -2004,9 +2011,9 @@ CRGB ColorFromPalette( const CRGBPalette16& pal,
 
 /// @brief Same as ColorFromPalette, but with uint16_t `index` to give greater precision.
 /// @author https://github.com/generalelectrix
-/// @source https://github.com/FastLED/FastLED/pull/202
-/// @example https://wokwi.com/projects/285170662915441160
-/// @example https://wokwi.com/projects/407831886158110721
+/// @see https://github.com/FastLED/FastLED/pull/202
+/// @see https://wokwi.com/projects/285170662915441160
+/// @see https://wokwi.com/projects/407831886158110721
 CRGB ColorFromPaletteExtended(
     const CRGBPalette16& pal,
     uint16_t index,
@@ -2016,8 +2023,8 @@ CRGB ColorFromPaletteExtended(
 /// @brief Same as ColorFromPalette, but higher precision. Will eventually
 ///        become the default.
 /// @author https://github.com/generalelectrix
-/// @source https://github.com/FastLED/FastLED/pull/202#issuecomment-631333384
-/// @example https://wokwi.com/projects/285170662915441160
+/// @see https://github.com/FastLED/FastLED/pull/202#issuecomment-631333384
+/// @see https://wokwi.com/projects/285170662915441160
 CRGB ColorFromPaletteExtended(
     const CRGBPalette32& pal,
     uint16_t index,
@@ -2295,5 +2302,7 @@ void   napplyGamma_video( CRGB* rgbarray, uint16_t count, float gammaR, float ga
 /// @} GammaFuncs
 
 FASTLED_NAMESPACE_END
+
+#pragma GCC diagnostic pop
 
 #endif

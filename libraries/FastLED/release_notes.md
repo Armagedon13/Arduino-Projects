@@ -1,3 +1,234 @@
+FastLED 3.9.14
+==============
+* Attiny13 and Attiny4343 now works
+  * https://github.com/FastLED/FastLED/pull/1874
+  * Thanks https://github.com/sutaburosu!
+* Arduino GIGA Now working
+  * Thank you [@RubixCubix!](https://github.com/RubiCubix)
+* Fix for mqtt build modes: https://github.com/FastLED/FastLED/issues/1884
+
+FastLED 3.9.13
+==============
+* HD107(s) and HD mode are now availabe in FastLED.
+  * See example HD107.ino
+  * Exactly the same as the AP102 chipset, but with turbo 40-mhz.
+  * Keep in mind APA102 is under clocked by FastLED for long strip stability, due to a bug in the chipset. See more: https://forum.makerforums.info/t/hi-all-i-have-800-strip-lengths-of-apa-102-leds-running-off-a/58899/23
+* WS2816 has improved support for the ObjectFLED and Esp32 RMT5 drivers.
+  * Big thanks to https://github.com/kbob for all the PR's he's submitting to do this.
+* ESP32 Legacy RMT Driver
+  * Long standing espressif bug for RMT under high load has finally been fixed.
+  * Big thanks to https://github.com/Jueff for fixing it.
+  * A regression was fixed in getting the cpu clock cycles.
+  
+![image](https://github.com/user-attachments/assets/9684ab7d-2eaa-40df-a00d-0dff18098917)
+
+
+FastLED 3.9.12
+==============
+* WS2816 (high definition) chipset now supported.
+  * Thank you https://github.com/kbob for the code to do this!
+  * This is a 16-bit per channel LED that runs on the WS2812 protocol.
+  * 4-bit internal gamma correction on the chipset.
+    * 8-bit gamma correction from software + hardware is possible, but not implemented yet.
+    * Therefore this is a beta release of the driver that may see a color correction enhancement down the line.
+  * See example: https://github.com/FastLED/FastLED/blob/master/examples/WS2816/WS2816.ino
+* Apollo3 SPE LoRa Thing Plus expLoRaBLE now supported
+* ESP32-C3 - WS2812 Flicker when using WIFI / Interrupts is now fixed.
+  * This has always been a problem since before 3.9.X series.
+  * ESP32-C3 now is more stable than ESP32-S3 for the RMT controller because they can allocate much more memory per channel.
+  * If you are on the ESP32-S3, please try out the SPI controller if driving one strip, or use the new I2S driver if driving lots of strips.
+* ObjectFLED is now automatic for Teensy 4.0/4.1 for WS2812.
+  * To disable use `#define FASTLED_NOT_USES_OBJECTFLED` before `#include "FastLED.h"`
+* Fixes for RGBW emulated mode for SAMD (digit, due) chipsets.
+* AVR platforms will see a 22% shrinkage when using the APA102 and APA102-HD chipset.
+  * Uno Firmware (bytes) w/ APA102-HD (bytes):
+    * 3.9.11: 11787
+    * 3.9.12: 9243 (-22%)
+
+
+FastLED 3.9.11
+==============
+* Bug fix for the Teensy and ESP32S3 massive parallel drivers.
+  * Teensy ObjectFLED: Each led strip can now be a different length, see [examples](https://github.com/FastLED/FastLED/blob/master/examples/TeensyMassiveParallel/TeensyMassiveParallel.ino)
+  * ESP32 S3 I2S:
+    * The FastLED.addLeds(...) style api now works..
+      * Please note at this time that all 16 strips must be used. Not sure why this is. If anyone has clarification please reach out.
+    * RGBW support has been added externally via RGBW -> RGB data spoofing (same thing RGBW Emulated mode uses).
+    * Fixed compiliation issue for Arduino 2.3.4, which is missing some headers. In this case the driver will issue a warning that it will unavailable. 
+* Cross platform improvements for
+  * `FASTLED_DBG`
+  * `FASTLED_WARN`
+  * `FASTLED_ASSERT`
+
+
+FastLED 3.9.10
+==============
+* ESP32
+  * RMT5 driver has been fixed for ESP32-S3. Upto 4 RMT workers may work in parallel.
+    * Rebased espressifs led_strip to v3.0.0
+    * Unresolved issues:
+      * DMA does not work for ESP32-S3 for my test setup with XIAO ESP32-S3
+        * This appears to be an espressif bug as using dma is not tested in their examples and does not work with the stock driver, or there is something I don't understand.
+        * Therefore DMA is disable for now, force it on with
+          * `#define FASTLED_RMT_USE_DMA` 
+          * `#include "FastLED.h"`
+          * If anyone knows what's going on, please file a bug with FastLED [issues](https://github.com/FastLED/FastLED/issues/new) page.
+  * New WS2812 SPI driver for ESP32
+    * Enables the ESP32C2 device, as it does not have a I2S or RMT drivers.
+    * SPI is backed by DMA and is apparently more stable than the RMT driver.
+      * Unfortunately, the driver only works with the WS2812 protocol.
+    * I was able to test that ESP32-S3 was able to use two spi channels in parallel.
+    * You can enable this default via
+      * `#define FASTLED_ESP32_USE_CLOCKLESS_SPI`
+      * `#include "FastLED.h"
+    * Advanced users can enable both the RMT5 and SPI drivers if they are willing to manually construct the SPI driver and at it to the FastLED singleton object via `FastLED.addLeds<...>'
+    * If RMT is not present (ESP32C2) then the ClocklessSpiWS2812 driver will be enabled and selected automatically.
+* Teensy
+  * Massive Parallel - ObjectFLED clockless driver.
+    * Stability improvements with timing.
+    * Resolves issue with using ObjectFLED mode with Teensy Audio DMA.
+    * ObjectFLED driver is now rebased to version 1.1.0
+
+
+FastLED 3.9.9 - I2S For ESP32-S3
+=============
+* ESP32
+  * Yves's amazing I2S driver for ESP32S3 is available through fastled!
+    * 12 way parallel, I2S/LCD protocol.
+    * https://github.com/hpwit/I2SClockLessLedDriveresp32s3
+    * 12
+    * See the Esp32-S3-I2SDemo: https://github.com/FastLED/FastLED/blob/master/examples/Esp32S3I2SDemo/Esp32S3I2SDemo.ino
+      * Be mindful of the requirements, this driver requires psram to be enabled, which requires platformio or esp-idf to work. Instructions are in the example.
+      * There's no standard FastLED.add<....> api for this driver yet... But hopefully soon.
+  * RMT Green light being stuck on / Performance issues on the Wroom
+    * Traced it back to RMT disable/delete which puts the pin in floating input mode, which can false signal led colors. If you are affected by this, a weak pulldown resistor will also solve the issue.
+    * Fixed: FastLED no longer attempts to disable rmt between draws - once RMT mode is enabled it stay enabled.
+    * MAY fix wroom. If this doesn't fix it, just downgrade to RMT4 (sorry), or switch to a higher end chipset. I tested the driver at 6.5ms for 256 * 4 way parallel, which is the max performance on ESP32S3. It was flawless for me.
+  * Some internal cleanup. We are now header-stable with 4.0 release: few namespace / header changes from this release forward.
+
+Special thanks to Yves and the amazing work with the 12 way parallel driver. He's pushing the limits on what the ESP32-S3 is capabable of. No joke.
+
+If you are an absolute performance freak, check out Yves's advanced version of this driver with ~8x multiplexing through "turbo" I2S:
+
+https://github.com/hpwit/I2SClockLessLedVirtualDriveresp32s3
+
+FastLED 3.9.8 - FastLED now supports 27.5k pixels and more, on the Teensy 4.x
+=============
+* FastLED 3.9.8 is the 7th beta release of FastLED 4.0
+* We are introducing the new beta release of a *Massive Parallel mode* for Teensy 4.0/4.1 for you to try out!
+  * Made possible by Kurt Funderburg's excellent ObjectFLED driver!
+    * Check out his stand alone driver: https://github.com/KurtMF/ObjectFLED
+    * And give him a star on his repo, this is INCREDIBLE WORK!
+  * This will allow you to drive
+    * Teensy 4.1: 50 strips of WS2812 - 27,500 pixels @ 60fps!!
+      * ~36k pixels at 30% overclock (common)
+      * ~46k pixels at 70% overclock (highest end WS2812)
+    * Teensy 4.0: 40 strips of WS2812 - 22,000 pixels @ 60fps.
+  * The Teensy 4.x series is a **absolute** LED driving beast!
+  * This driver is async, so you can prepare the next frame while the current frame draws.
+  * Sketch Example: [https://github.com/FastLED/FastLED/blob/master/examples/TeensyMassiveParallel/TeensyMassiveParallel.ino](https://github.com/FastLED/FastLED/blob/master/examples/TeensyMassiveParallel/TeensyMassiveParallel.ino)
+  * It's very simple to turn on:
+    * `#define FASTLED_USES_OBJECTFLED`
+    * `#include "FastLED.h"` - that's it! No other changes necessary!
+  * Q/A:
+    * Is anything else supported other than WS2812? - Not at this moment. As far as I know, all strips on this bulk controller **must** use the same
+      timings. Because of the popularity of WS2812, it is enabled for this controller first. I will add support for other controllers based on the number of feature requests for other WS281x chipsets.
+    * Is overclocking supported? Yes, and it binds to the current overclock `#define FASTLED_OVERCLOCK 1.2` @ a 20% overlock.
+    * Have you tested this? Very lightly in FastLED, but Kurt has done his own tests and FastLED just provides some wrappers to map it to our familiar and easy api.
+    * How does this compare to the stock LED driver on Teensy for just one strip? Better and way less random light flashes. For some reason the stock Teensy WS2812 driver seems to produce glitches, but with the ObjectFLED driver seems to fix this.
+    * Will this become the default driver on Teensy 4.x? Yes, in the next release, unless users report problems.
+    * Is RGBW supported? Yes - all FastLED RGBW modes are supported.
+    * Can other non WS281x chipsets be supported? It appears so, as ObjectFLED does have flexible timings that make it suitable for other clockless chipsets.
+    * Does this consume a lot of memory? Yes. ObjectFLED expects a rectangular pixel buffer and this will be generated automatically. This buffer will then be converted into a DMA memory block. However, this shouldn't be that big of a problem as the Teensy 4.x features a massive amount of memory.
+* Other Changes
+  * ESP32 - bug fixes for RMT5 no recycle mode. This is now the default and addresses the "green led stuck on" issue that some people are facing with ESP-WROOM-32. We also saw it in one bug report for ESP32-S3, so we are going to just enable it everywhere.
+    * If you absolutely need the extra controllers because you have more strips than RMT controllers, then you can re-enable recycle mode with:
+      * `#define FASTLED_RMT5_RECYCLE=1` before `#include "FastLED.h"`
+* Arduino Cloud compile fixes
+  * ESP328622 has an additional compile fix for the in-place new operator. Arduino Cloud compiler uses an ancient gcc compiler version which is missing the __has_include that we use to determine if FastLED needs to define a missing in-place new operator.
+* Internal stuff
+  * `FASTLED_ASSERT(true/false, MSG)` now implemented on ESP32, other platforms will just call `FASTLED_WARN(MSG)` and not abort. Use it via `#include fl/assert.h`. Be careful because on ESP32 it will absolutely abort the program, even in release. This may change later.
+
+
+FastLED 3.9.7
+=============
+* ESP32:
+  * Okay final fix for the green led that's been stuck on. It turns out in 3.9.6 I made a mistake and swapped the RMT recycle vs no recycle. This should now be corrected. To get the old behavior back use `#define FASTLED_RMT5_RECYCLE=1`. The new behavior may become the default if it turns out this is more stable.
+* Arduino Cloud Compiler: This should now work ancient compiler toolchains that they use for some of the older ESP boards. Despite the fact that two bugs were fixed in the last release, another one cropped up in 3.9.6 for extremely old idf toolchians which defines digitalRead/digitalWrite not as functions, but as macros.
+
+
+FastLED 3.9.6
+=============
+* ESP32:
+  * Sticky first green LED on the chain has been fixed. It turned out to be aggressive RMT recycling. We've disabled this for now and filed a bug:
+      * https://github.com/FastLED/FastLED/issues/1786
+      * https://github.com/FastLED/FastLED/issues/1761
+      * https://github.com/FastLED/FastLED/issues/1774
+* Bug fix for FastLED 3.9.5
+  * Fixes using namespace fl in `FastLED.h` in the last release (oops!)
+* Fixes for Arduino Cloud compiler and their ancient version of esp-idf for older chips.
+  * Handle missing `IRAM_ATTR`
+  * inplace new operator now is smarter about when to be defined by us.
+
+FastLED 3.9.5
+=============
+
+* Esp32:
+  * There's a bug in the firmware of some ESP32's where the first LED is green/blue/red, though we haven't be able to reproduce it.
+  * This may be manifesting because of our RMT recycling. We offer a new RMT5 variant that may fix this.
+    * Here's how you enable it: use `#define FASTLED_RMT5_RECYCLE=0` before you `#include "FastLED.h"`
+    * If this works then please let us know either on reddit or responding to our bug entries:
+      * https://github.com/FastLED/FastLED/issues/1786
+      * https://github.com/FastLED/FastLED/issues/1761
+      * https://github.com/FastLED/FastLED/issues/1774
+* ESP32C6
+  * This new board had some pins marked as invalid. This has been fixed.
+* ESP32S2
+  * The correct SPI chipset (FSPI, was VSPI) is now used when `FASTLED_ALL_PINS_HARDWARE_SPI` is active.
+* The previous headers that were in src/ now have a stub that will issue a deprecation warning and instructions to fix, please migrated before 4.0 as the deprecated headers will go away.
+* Many many strict compiler warnings are now treated as errors during unit test. Many fixes in the core have been applied.
+* CLEDController::setEnabled(bool) now allows controllers to be selectively disabled/enabled. This is useful if you want to have multiple controller types mapped to the same pin and select which ones are active during runtime, or to shut them off for whatever reason.
+* Attiny88 is now under test.
+* CLEDController::clearLeds() again calls showLeds(0)
+* Completely remove Json build artifacts for avr, fixes compiler error for ancient avr-gcc versions.
+* Namespaces: `fl` - the new FastLED namespace
+  * Much of the new code in 3.9.X has been moved into the `fl` namespace. This is now located in the `fl/` directory. These files have mandatory namespaces but most casual users won't care because because all the files in the `fl/` directory are for internal core use.
+  * Namespaces for the core library are now enabled in internal unit tests to ensure they work correctly for the power users that need them. Enabling them requires a build-level define. (i.e. every build system except ArduinoIDE supports this) you can use it putting in this build flag: `-DFASTLED_NAMESPACE=1`. This will force it on for the entire FastLED core.
+  * We are doing this because we keep getting conflicts with our files and classes conflict with power users who have lots of code.The arduino build system likes to put all the headers into the global space so the chance of collisions goes up dramatically with the number of dependencies one has and we are tired of playing wack a mole with fixing this.
+    * Example: https://github.com/FastLED/FastLED/issues/1775
+* Stl-like Containers: We have some exciting features coming up for you. In this release we are providing some of the containers necessary for complex embedded black-magic.
+  * `fl::Str`: a copy on write String with inlined memory, which overflows to the heap after 64 characters. Lightning fast to copy around and keep your characters on the stack and prevent heap allocation. Check it out in `fl/str.h`. If 64 characters is too large for your needs then you can change it with a build-level define.
+  * `fl/vector.h`:
+    * `fl::FixedVector`: Inlined vector which won't ever overflow.
+    * `fl::HeapVector`: Do you need overflow in your vector or a drop in replacement for `std::vector`? Use this.
+    * `fl::SortedHeapVector`: If you want to have your items sorted, use this. Inserts are O(n) always right now, however with deferred sorting, it could be much faster. Use `fl::SortedHeapVector::setMaxSize(int)` to keep it from growing.
+  * `fl/map.h`
+    * `fl::SortedHeapMap`: Almost a drop in replacement for `std::map`. It differs from the `fl::SortedHeapVector` because this version works on key/value pairs. Like `std::map` this takes a comparator which only applies to the keys.
+    * `fl::FixedMap`: Constant size version of `fl::SortedHeapMap` but keeps all the elements inlined and never overflows to the heap.
+  * `fl/set.h`
+    * `fl::FixedSet`: Similar to an `std::set`. Never overflows and all the memory is inlined. Ever operation is O(N) but the inlined nature means it will beat out any other set as long as you keep it small.
+  * `fl/scoped_ptr.h`:
+    * `fl::scoped_ptr.h`:
+      * Similar to `std::unique_ptr`, this allows you to manage a pointer type and have it automatically destructed.
+    * `fl::scoped_array.h`: Same thing but for arrays. Supports `operator[]` for array like access.
+  * `fl/slice.h`: Similar to an `std::span`, this class will allow you to pass around arrays of contigious memory. You can `pop_front()` and `pop_back()`, but it doesn't own the memory so nothing will get deleted.
+  * `fl/ptr.h`
+    * `fl::Ptr<T>`, a ref counted intrusive shared pointer. "Intrusive" means the referent is inside the class the pointer refers to, which prevents an extra allocation on the heap. It's harder to use than `std::shared_ptr` because it's extremely strict and will not auto-covert a raw pointer into this Ptr type without using `Ptr<T>::TakeOwnership(T*)`. This is done to prevent objects from double deletion. It can also take in pointers to stack/static objects with `Ptr<T>::NoTracking(T*)`, which will disable reference counter but still allow you use
+* Blur effects no longer link to the int XY(int x, int y) function which is assumed to exist in your sketch. This has been the bane of existance for those that encounter it. Now all functions that linked to XY() now take in a `fl::XYMap` which is the class
+  form of this. This also means that you can apply blur effects with multiple led panels, where XY() assumed you just had only one array of leds.
+* Sensors
+  * PIR (passife infrared) sensors are one of the staples of LED effects. They are extremely good at picking up movement anywhere and are extremely cheap. They are also extremely easy to use with only one pin, besides the power rails. I've used them countless times for nearly all my LED effects. Therefore I've added two PIR sensors for you to play around with.
+    * `sensors/pir.h`
+      * `fl::Pir`: This is a basic PIR that will tell you if the sensor is curently triggered. It doesn't do much else.
+      * `fl::AdvancedPir`: An extended version of `fl::Pir` which gives transition effects as it turns on and off. Here is what the
+        the constructor looks like: `fl::PirAdvanced(int pin, uint32_t latchMs = 5000, uint32_t risingTime = 1000, uint32_t fallingTime = 1000)`.
+        You will give it the pin, an optional latch time (how long it stays on for), the rising time (how long to go from off to on) and the falling
+        time which is how long it takes to go from on to off. By default it will ramp on for one second, stay on for 5 seconds at full brightness, then
+        start turning off for one second. All you have to do is give it the current `millis()` value.
+      * To see it in action check out `examples/fx/NoiseRing`
+* AVR
+  * The Atmega family and 32u now has a maximum of 16 controllers that can be active, up from 8, due to these models having more memory. Someone actually needed this, suprisingly.
+* The 4.0 release is getting closer. We have some exciting stuff on the horizon that I can't wait to show you! Happy Coding! ~Zach
 
 FastLED 3.9.4
 =============
@@ -22,7 +253,7 @@ FastLED 3.9.2
   * In this version we introduce the pre-release of our WS2812 overclocking
   * We have compile fixes for 3.9.X
 * WS28XX family of led chipsets can now be overclocked
-  * See also define `FASTLED_LED_OVERCLOCK`
+  * See also define `FASTLED_OVERCLOCK`
     * Example: `#define FASTLED_OVERCLOCK 1.2` (gives 20% overclock).
     * You can set this define before you include `"FastLED.h"`
     * Slower chips like AVR which do software bitbanging will ignore this.

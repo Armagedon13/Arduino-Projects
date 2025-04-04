@@ -3,10 +3,11 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "ref.h"
-#include "template_magic.h"
-#include "fixed_vector.h"
-#include "namespace.h"
+#include "fl/ptr.h"
+#include "fl/template_magic.h"
+#include "fl/vector.h"
+#include "fl/namespace.h"
+#include "fl/math_macros.h"
 
 #ifndef FASTLED_STR_INLINED_SIZE
 #define FASTLED_STR_INLINED_SIZE 64
@@ -32,22 +33,25 @@ class Str;
 ///////////////////////////////////////////////////////
 // Implementation details.
 
-FASTLED_SMART_REF(StringHolder);
+FASTLED_SMART_PTR(StringHolder);
 
 class StringFormatter {
   public:
-    static void append(int val, StrN<64> *dst);
+    static void append(int32_t val, StrN<64> *dst);
     static bool isSpace(char c) { return c == ' ' || c == '\t' || c == '\n' || c == '\r'; }
     static float parseFloat(const char *str, size_t len);
     static bool isDigit(char c) { return c >= '0' && c <= '9'; }
 };
 
-class StringHolder : public Referent {
+class StringHolder : public fl::Referent {
   public:
     StringHolder(const char *str);
     StringHolder(size_t length);
     StringHolder(const char *str, size_t length);
+    StringHolder(const StringHolder &other) = delete;
+    StringHolder &operator=(const StringHolder &other) = delete;
     ~StringHolder();
+
     bool isShared() const { return ref_count() > 1; }
     void grow(size_t newLength);
     bool hasCapacity(size_t newLength) const { return newLength <= mCapacity; }
@@ -76,7 +80,7 @@ template <size_t SIZE = 64> class StrN {
   private:
     size_t mLength = 0;
     char mInlineData[SIZE] = {0};
-    StringHolderRef mHeapData;
+    StringHolderPtr mHeapData;
 
   public:
     // Constructors
@@ -86,12 +90,12 @@ template <size_t SIZE = 64> class StrN {
     template <size_t M> StrN(const StrN<M> &other) { copy(other); }
     StrN(const char *str) {
         size_t len = strlen(str);
-        mLength = len;
-        if (len + 1 <= SIZE) {
-            memcpy(mInlineData, str, len + 1);
+        mLength = len;  // Length is without null terminator
+        if (len + 1 <= SIZE) {  // Check capacity including null
+            memcpy(mInlineData, str, len + 1);  // Copy including null
             mHeapData.reset();
         } else {
-            mHeapData = StringHolderRef::New(str);
+            mHeapData = StringHolderPtr::New(str);
         }
     }
     StrN(const StrN &other) { copy(other); }
@@ -108,8 +112,16 @@ template <size_t SIZE = 64> class StrN {
                 return;
             }
             mHeapData.reset();
-            mHeapData = StringHolderRef::New(str);
+            mHeapData = StringHolderPtr::New(str);
         }
+    }
+
+    template<int N> StrN(const char (&str)[N]) {
+        copy(str, N-1);  // Subtract 1 to not count null terminator
+    }
+    template<int N> StrN &operator=(const char (&str)[N]) {
+        assign(str, N);
+        return *this;
     }
     StrN &operator=(const StrN &other) {
         copy(other);
@@ -135,7 +147,7 @@ template <size_t SIZE = 64> class StrN {
             memcpy(mInlineData, str, len + 1);
             mHeapData.reset();
         } else {
-            mHeapData = StringHolderRef::New(str, len);
+            mHeapData = StringHolderPtr::New(str, len);
         }
     }
 
@@ -148,17 +160,16 @@ template <size_t SIZE = 64> class StrN {
             if (other.mHeapData) {
                 mHeapData = other.mHeapData;
             } else {
-                mHeapData = StringHolderRef::New(other.c_str());
+                mHeapData = StringHolderPtr::New(other.c_str());
             }
         }
         mLength = len;
     }
 
-    size_t write(int n) {
-        StrN<64> dst;
-        StringFormatter::append(n, &dst); // Inlined size should suffice
-        return write(dst.c_str(), dst.size());
+    size_t capacity() const {
+        return mHeapData ? mHeapData->capacity() : SIZE;
     }
+
 
     size_t write(const uint8_t *data, size_t n) {
         const char *str = reinterpret_cast<const char *>(data);
@@ -167,23 +178,24 @@ template <size_t SIZE = 64> class StrN {
 
     size_t write(const char *str, size_t n) {
         size_t newLen = mLength + n;
-        if (newLen + 1 <= SIZE) {
-            memcpy(mInlineData + mLength, str, n);
-            mLength = newLen;
-            mInlineData[mLength] = '\0';
-            return mLength;
-        }
         if (mHeapData && !mHeapData->isShared()) {
             if (!mHeapData->hasCapacity(newLen)) {
-                mHeapData->grow(newLen * 3 / 2); // Grow by 50%
+                size_t grow_length = MAX(3, newLen * 3 / 2);
+                mHeapData->grow(grow_length); // Grow by 50%
             }
             memcpy(mHeapData->data() + mLength, str, n);
             mLength = newLen;
             mHeapData->data()[mLength] = '\0';
             return mLength;
         }
+        if (newLen + 1 <= SIZE) {
+            memcpy(mInlineData + mLength, str, n);
+            mLength = newLen;
+            mInlineData[mLength] = '\0';
+            return mLength;
+        }
         mHeapData.reset();
-        StringHolderRef newData = StringHolderRef::New(newLen);
+        StringHolderPtr newData = StringHolderPtr::New(newLen);
         if (newData) {
             memcpy(newData->data(), c_str(), mLength);
             memcpy(newData->data() + mLength, str, n);
@@ -202,12 +214,36 @@ template <size_t SIZE = 64> class StrN {
         return write(str, 1);
     }
 
+    size_t write(const uint16_t& n) {
+        StrN<64> dst;
+        StringFormatter::append(n, &dst); // Inlined size should suffice
+        return write(dst.c_str(), dst.size());
+    }
+
+    size_t write(const uint32_t& val) {
+        StrN<64> dst;
+        StringFormatter::append(val, &dst); // Inlined size should suffice
+        return write(dst.c_str(), dst.size());
+    }
+
+    size_t write(const int32_t& val) {
+        StrN<64> dst;
+        StringFormatter::append(val, &dst); // Inlined size should suffice
+        return write(dst.c_str(), dst.size());
+    }
+
+    size_t write(const int8_t val) {
+        StrN<64> dst;
+        StringFormatter::append(int16_t(val), &dst); // Inlined size should suffice
+        return write(dst.c_str(), dst.size());
+    }
+
     // Destructor
     ~StrN() {}
 
     // Accessors
     size_t size() const { return mLength; }
-    size_t length() const { return mLength; }
+    size_t length() const { return size(); }
     const char *c_str() const {
         return mHeapData ? mHeapData->data() : mInlineData;
     }
@@ -232,10 +268,10 @@ template <size_t SIZE = 64> class StrN {
         return c_str()[index];
     }
 
+    bool empty() const { return mLength == 0; }
+
     // Append method
-    void append(const char *str) { write(str, strlen(str)); }
-    void append(char c) { write(&c, 1); }
-    void append(const StrN &str) { write(str.c_str(), str.size()); }
+
 
     bool operator<(const StrN &other) const {
         return strcmp(c_str(), other.c_str()) < 0;
@@ -245,9 +281,35 @@ template <size_t SIZE = 64> class StrN {
         return strcmp(c_str(), other.c_str()) < 0;
     }
 
-    void clear() {
+    void reserve(size_t newCapacity) {
+        // If capacity is less than current length, do nothing
+        if (newCapacity <= mLength) {
+            return;
+        }
+
+        // If new capacity fits in inline buffer, no need to allocate
+        if (newCapacity + 1 <= SIZE) {
+            return;
+        }
+
+        // If we already have unshared heap data with sufficient capacity, do nothing
+        if (mHeapData && !mHeapData->isShared() && mHeapData->hasCapacity(newCapacity)) {
+            return;
+        }
+
+        // Need to allocate new storage
+        StringHolderPtr newData = StringHolderPtr::New(newCapacity);
+        if (newData) {
+            // Copy existing content
+            memcpy(newData->data(), c_str(), mLength);
+            newData->data()[mLength] = '\0';
+            mHeapData = newData;
+        }
+    }
+
+    void clear(bool freeMemory = false) {
         mLength = 0;
-        if (mHeapData) {
+        if (freeMemory && mHeapData) {
             mHeapData.reset();
         }
     }
@@ -297,8 +359,10 @@ template <size_t SIZE = 64> class StrN {
         return StringFormatter::parseFloat(c_str(), mLength);
     }
 
+
+
   private:
-    StringHolderRef mData;
+    StringHolderPtr mData;
 };
 
 class Str : public StrN<FASTLED_STR_INLINED_SIZE> {
@@ -312,12 +376,49 @@ class Str : public StrN<FASTLED_STR_INLINED_SIZE> {
         copy(other);
         return *this;
     }
+
+    bool operator>(const Str &other) const {
+        return strcmp(c_str(), other.c_str()) > 0;
+    }
+
+    bool operator>=(const Str &other) const {
+        return strcmp(c_str(), other.c_str()) >= 0;
+    }
+
+    bool operator<(const Str &other) const {
+        return strcmp(c_str(), other.c_str()) < 0;
+    }
+
+    bool operator<=(const Str &other) const {
+        return strcmp(c_str(), other.c_str()) <= 0;
+    }
+
+    bool operator==(const Str &other) const {
+        return strcmp(c_str(), other.c_str()) == 0;
+    }
+
+    bool operator!=(const Str &other) const {
+        return strcmp(c_str(), other.c_str()) != 0;
+    }
+
+    Str& append(const char *str) { write(str, strlen(str)); return *this; }
+    Str& append(const char *str, size_t len) { write(str, len); return *this; }
+    //Str& append(char c) { write(&c, 1); return *this; }
+    Str& append(const int8_t& c) {
+        const char* str = reinterpret_cast<const char*>(&c);
+        write(str, 1); return *this;
+    }
+    Str& append(const uint8_t& c) { write(uint16_t(c)); return *this; }
+    Str& append(const uint16_t& val) { write(val); return *this; }
+    Str& append(const int16_t& val) { write(uint32_t(val)); return *this; }
+    Str& append(const uint32_t& val) { write(val); return *this; }
+    Str& append(const int32_t& c) { write(c); return *this; }
+
+    Str& append(const StrN &str) { write(str.c_str(), str.size()); return *this; }
+
+
 };
 
-// Make compatible with std::ostream and other ostream-like objects
-FASTLED_DEFINE_OUTPUT_OPERATOR(Str) {
-    os << obj.c_str();
-    return os;
-}
+
 
 } // namespace fl

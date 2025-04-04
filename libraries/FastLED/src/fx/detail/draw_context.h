@@ -1,10 +1,10 @@
 #pragma once
 
 #include <stdint.h>
-#include "namespace.h"
+#include "fl/namespace.h"
 #include "crgb.h"
 
-FASTLED_NAMESPACE_BEGIN
+namespace fl {
 
 // Abstract base class for effects on a strip/grid of LEDs.
 
@@ -27,5 +27,5 @@ struct _DrawContext {
         alpha_channel(alpha_channel) {}
 };
 
-FASTLED_NAMESPACE_END
+}  // namespace fl
 

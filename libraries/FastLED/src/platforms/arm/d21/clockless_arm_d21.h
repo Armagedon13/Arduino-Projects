@@ -2,7 +2,7 @@
 #define __INC_CLOCKLESS_ARM_D21
 
 #include "../common/m0clockless.h"
-#include "namespace.h"
+#include "fl/namespace.h"
 #include "eorder.h"
 
 FASTLED_NAMESPACE_BEGIN
@@ -40,6 +40,9 @@ public:
     // This method is made static to force making register Y available to use for data on AVR - if the method is non-static, then
     // gcc will use register Y for the this pointer.
     static uint32_t showRGBInternal(PixelController<RGB_ORDER> pixels) {
+        if (pixels.size() == 0) {
+            return 1;   // nonzero means success
+        }
         struct M0ClocklessData data;
         data.d[0] = pixels.d[0];
         data.d[1] = pixels.d[1];

@@ -21,7 +21,10 @@ dependencies = [
     "ziglang",
     "ninja",
     "cmake",
-    "download"
+    "download",
+    "fastled>=1.2.26",
+    "playwright",
+    "advanced-aicode"
 ]
 
 [build-system]

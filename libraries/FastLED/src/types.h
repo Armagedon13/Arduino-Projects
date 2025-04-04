@@ -1,16 +1,5 @@
-#ifndef TYPES_H
-#define TYPES_H
+#pragma once
 
-#include "led_sysdefs.h"
+#warning "This header is deprecated. Please use types.h, this header will go away in the version 4.0."
 
-FASTLED_NAMESPACE_BEGIN
-
-#if defined(__AVR__)
-typedef int cycle_t;  ///< 8.8 fixed point (signed) value
-#else
-typedef int64_t cycle_t;  ///< 8.8 fixed point (signed) value
-#endif
-
-FASTLED_NAMESPACE_END
-
-#endif  // TYPES_H
+#include "fl/types.h"

@@ -1,7 +1,7 @@
 #pragma once
 
-/// @file controller.h
-/// base definitions used by led controllers for writing out led data
+/// @file pixel_controller.h
+/// Low level pixel data writing class
 
 // Note that new code should use the PixelIterator concrete object to write out
 // led data.
@@ -14,8 +14,8 @@
 #include "FastLED.h"
 #include "rgbw.h"
 #include "five_bit_hd_gamma.h"
-#include "force_inline.h"
-#include "namespace.h"
+#include "fl/force_inline.h"
+#include "fl/namespace.h"
 #include "eorder.h"
 #include "dither_mode.h"
 #include "pixel_iterator.h"
@@ -73,7 +73,7 @@ struct PixelController {
     int mLen;                ///< number of LEDs in the data for one lane
     int mLenRemaining;       ///< counter for the number of LEDs left to process
     uint8_t d[3];            ///< values for the scaled dither signal @see init_binary_dithering()
-    uint8_t e[3];            ///< values for the scaled dither signal @see init_binary_dithering()
+    uint8_t e[3];            ///< values for the unscaled dither signal @see init_binary_dithering()
     int8_t mAdvance;         ///< how many bytes to advance the pointer by each time. For CRGB this is 3.
     int mOffsets[LANES];     ///< the number of bytes to offset each lane from the starting pointer @see initOffsets()
     ColorAdjustment mColorAdjustment;
@@ -83,7 +83,7 @@ struct PixelController {
         kMask = MASK
     };
 
-    PixelIterator as_iterator(const Rgbw& rgbw) {
+    FASTLED_FORCE_INLINE PixelIterator as_iterator(const Rgbw& rgbw) {
         return PixelIterator(this, rgbw);
     }
 
@@ -516,6 +516,47 @@ struct PixelController {
         *b2_out = loadAndScale2();
     }
 
+    // WS2816B has native 16 bit/channel color and internal 4 bit gamma correction.
+    // So we don't do gamma here, and we don't bother with dithering.
+    FASTLED_FORCE_INLINE void loadAndScale_WS2816_HD(uint16_t *s0_out, uint16_t *s1_out, uint16_t *s2_out) {
+        // Note that the WS2816 has a 4 bit gamma correction built in. To improve things this algorithm may
+        // change in the future with a partial gamma correction that is completed by the chipset gamma
+        // correction.
+        uint16_t r16 = map8_to_16(mData[0]);
+        uint16_t g16 = map8_to_16(mData[1]);
+        uint16_t b16 = map8_to_16(mData[2]);
+        if (r16 || g16 || b16) {
+    #if FASTLED_HD_COLOR_MIXING
+            uint8_t brightness = mColorAdjustment.brightness;
+            CRGB scale = mColorAdjustment.color;
+    #else
+            uint8_t brightness = 255;
+            CRGB scale = mColorAdjustment.premixed;
+    #endif
+            if (scale[0] != 255) {
+                r16 = scale16by8(r16, scale[0]);
+            }
+            if (scale[1] != 255) {
+                g16 = scale16by8(g16, scale[1]);
+            }
+            if (scale[2] != 255) {
+                b16 = scale16by8(b16, scale[2]);
+            }
+            if (brightness != 255) {
+                r16 = scale16by8(r16, brightness);
+                g16 = scale16by8(g16, brightness);
+                b16 = scale16by8(b16, brightness);
+            }
+        }
+        uint16_t rgb16[3] = {r16, g16, b16};
+        const uint8_t s0_index = RGB_BYTE0(RGB_ORDER);
+        const uint8_t s1_index = RGB_BYTE1(RGB_ORDER);
+        const uint8_t s2_index = RGB_BYTE2(RGB_ORDER);
+        *s0_out = rgb16[s0_index];
+        *s1_out = rgb16[s1_index];
+        *s2_out = rgb16[s2_index];
+    }
+
     FASTLED_FORCE_INLINE void loadAndScaleRGBW(Rgbw rgbw, uint8_t *b0_out, uint8_t *b1_out,
                                                uint8_t *b2_out, uint8_t *b3_out) {
 #ifdef __AVR__
@@ -542,7 +583,7 @@ struct PixelController {
         uint8_t w = 0;
         rgb_2_rgbw(rgbw.rgbw_mode,
                    rgbw.white_color_temp,
-                   rgb.r, rgb.b, rgb.g,  // Input colors
+                   rgb.r, rgb.g, rgb.b,  // Input colors
                    mColorAdjustment.premixed.r, mColorAdjustment.premixed.g, mColorAdjustment.premixed.b,  // How these colors are scaled for color balance.
                    &rgb.r, &rgb.g, &rgb.b, &w);
         // Now finish the ordering so that the output is in the native led order for all of RGBW.

@@ -2,11 +2,20 @@
 
 Modbus is an industrial communication protocol. The RTU variant communicates over serial lines such as UART, RS-232, or RS-485. The full details of the Modbus protocol can be found at [modbus.org](https://modbus.org). A good summary can also be found on [Wikipedia](https://en.wikipedia.org/wiki/Modbus).
 
-This is an Arduino library that implements the slave/server logic of the Modbus RTU protocol. It enables an Arduino, or arduino compatible, board to respond to Modbus RTU requests from a Modbus master/client. This library implements function codes 1 (Read Coils), 2 (Read Discrete Inputs), 3 (Read Holding Registers), 4 (Read Input Registers), 5 (Write Single Coil), 6 (Write Single Holding Register), 15 (Write Multiple Coils), and 16 (Write Multiple Holding Registers).
+This is an Arduino library that implements the slave/server logic of the Modbus RTU protocol. It enables an Arduino, or arduino compatible, board to respond to Modbus RTU requests from a Modbus master/client.  
+This library is able to service the following function codes:  
+- 1 (Read Coils)
+- 2 (Read Discrete Inputs)
+- 3 (Read Holding Registers)
+- 4 (Read Input Registers)
+- 5 (Write Single Coil)
+- 6 (Write Single Holding Register)
+- 15 (Write Multiple Coils)
+- 16 (Write Multiple Holding Registers).
 
 This library will work with any `Stream` object, like `Serial`. A driver enable pin can be set up, enabling a half-duplex RS-485 transceiver to be used. Only `SERIAL_8N1`, `SERIAL_8E1`, `SERIAL_8O1`, `SERIAL_8N2`, `SERIAL_8E2`, and `SERIAL_8O2` configurations are supported; attempting to use any other configuration will cause the library to default to timings for `SERIAL_8N1`.
 
-This library updates coil, descrete input, holding register, and input register arrays based on Modbus requests. It does not give indication of what has changed, or even if a valid Modbus reguest has been received. This is done to keep the library simple and easy to use.
+This library updates `coil`, `descrete input`, `holding register`, and `input register` arrays based on Modbus requests. It does not give indication of what has changed, but it does give indication if a valid Modbus request has been received.
 
 
 
@@ -15,12 +24,12 @@ This library updates coil, descrete input, holding register, and input register 
 Version 2.x.x of this library is not backward compatible with version 1.x.x. Any sketches that were written to use a 1.x.x version of this library will not work with later versions, at least not without modification.
 
 ### 2.x.x to 3.x.x
-The main change going from version 2.x.x to 3.x.x si that `begin()` for the Serial object used needs to be run before running `begin()` for the library itself, e.g.:
+The main change going from version 2.x.x to 3.x.x is that `begin()` for the Serial object used needs to be run before running `begin()` for the library itself, e.g.:
 ```C++
 Serial1.begin(38400);
 modbus.begin(38400);
 ```
-This library is also now dependent on [ModbusADU](https://github.com/CMB27/ModbusADU) and [ModbusRTUComm](https://github.com/CMB27/ModbusRTUComm).
+This library is also now dependent on [ModbusADU](https://github.com/CMB27/ModbusADU) and [ModbusRTUComm](https://github.com/CMB27/ModbusRTUComm), and as of version 3.1.0, it is also dependent on [ModbusSlaveLogic](https://github.com/CMB27/ModbusSlaveLogic).
 
 
 
@@ -30,21 +39,24 @@ This library has been tested with the following boards and cores:
 | Board Name                  | Core                                                                 | Works    |
 | :-------------------------- | :------------------------------------------------------------------- | :------: |
 | Arduino Due                 | **Arduino SAM Boards (32-bits ARM Cortex-M3)** by Arduino `1.6.12`   | Yes      |
-| Arduino Giga                | **Arduino Mbed OS GIGA Boards** by Arduino `4.1.5`                   | Yes      |
+| Arduino Giga                | **Arduino Mbed OS GIGA Boards** by Arduino `4.2.1`                   | Yes      |
 | Arduino Leonardo            | **Arduino AVR Boards** by Arduino `1.8.6`                            | Yes      |
 | Arduino Make Your UNO       | **Arduino AVR Boards** by Arduino `1.8.6`                            | Yes [^1] |
 | Arduino Mega 2560           | **Arduino AVR Boards** by Arduino `1.8.6`                            | Yes      |
 | Arduino Nano                | **Arduino AVR Boards** by Arduino `1.8.6`                            | Yes      |
-| Arduino Nano 33 BLE         | **Arduino Mbed OS Nano Boards** by Arduino `4.1.5`                   | Yes      |
+| Arduino Nano 33 BLE         | **Arduino Mbed OS Nano Boards** by Arduino `4.2.1`                   | Yes      |
 | Arduino Nano 33 IoT         | **Arduino SAMD Boards (32-bits ARM Cortex-M0+)** by Arduino `1.8.14` | Yes      |
 | Arduino Nano ESP32          | **Arduino ESP32 Boards** by Arduino `2.0.13`                         | Yes      |
-| Arduino Nano ESP32          | **esp32** by Espressif Systems `3.0.5`                               | Yes      |
+| Arduino Nano ESP32          | **esp32** by Espressif Systems `3.0.7`                               | Yes      |
 | Arduino Nano Every          | **Arduino megaAVR Boards** by Arduino `1.8.8`                        | Yes      |
-| Arduino Nano Matter         | **Silicon Labs** by Silicon Labs `2.1.0`                             | No [^2]  |
-| Arduino Nano RP2040 Connect | **Arduino Mbed OS Nano Boards** by Arduino `4.1.5`                   | No [^3]  |
-| Arduino Nano RP2040 Connect | **Raspberry Pi Pico/RP2040** by Earle F. Philhower, III `4.1.1`      | Yes      |
+| Arduino Nano Matter         | **Silicon Labs** by Silicon Labs `2.2.0`                             | Yes      |
+| Arduino Nano RP2040 Connect | **Arduino Mbed OS Nano Boards** by Arduino `4.2.1`                   | No [^2]  |
+| Arduino Nano RP2040 Connect | **Raspberry Pi Pico/RP2040** by Earle F. Philhower, III `4.4.0`      | Yes      |
 | Arduino UNO R3 SMD          | **Arduino AVR Boards** by Arduino `1.8.6`                            | Yes      |
-| Arduino UNO R4 Minima       | **Arduino UNO R4 Boards** by Arduino `1.2.2`                         | Yes      |
+| Arduino UNO R4 Minima       | **Arduino UNO R4 Boards** by Arduino `1.3.2`                         | Yes      |
+| Arduino UNO R4 WiFi         | **Arduino UNO R4 Boards** by Arduino `1.3.2`                         | Yes      |
+| ST NUCLEO-F103RB            | **STM32 MCU based boards** by STMicroelectronics `2.9.0`             | Yes      |
+| ST NUCLEO-F411RE            | **STM32 MCU based boards** by STMicroelectronics `2.9.0`             | Yes      |
 
 [^1]: **Arduino Make Your UNO**  
 The example program does not work with this board when connected to a computer via USB.
@@ -52,19 +64,13 @@ However, it does work when it is powered through the barrel jack.
 
 [^2]: **Arduino Nano RP2040 Connect**  
 This board has trouble receiving Modbus messages when using the `Arduino Mbed OS Nano Boards` core by Arduino.  
-It seems that there is some sort of timing issue.  
-It can technically be made to work if you tell the library that it is operating at a lower baud rate than the serial port assigned to the library is actually operating at.
-However, this would cause the library to operate with unknown timing tolerances, possibly well outside the Modbus specification.
-
-[^3]: **Arduino Nano Matter**  
-As of this writing (2024-09-07), `flush()` is not properly implemented with Serial on this board.  
-ModbusRTUMaster depends on `flush()` to know when to set the DE and RE pins LOW after a message is sent.
+It seems that there is some issue with how the timing of `Serial.read()` works with this core.
 
 
 
 ## Example
 - [ModbusRTUSlaveExample](https://github.com/CMB27/ModbusRTUSlave/blob/main/examples/ModbusRTUSlaveExample/ModbusRTUSlaveExample.ino)
-
+- [NotModbusRTUSlaveExample](https://github.com/CMB27/ModbusRTUSlave/blob/main/examples/NotModbusRTUSlaveExample/NotModbusRTUSlaveExample.ino)
 
 
 ## Methods
@@ -86,7 +92,7 @@ Optionally sets a driver enable pin. This pin will go `HIGH` when the library is
 ### Parameters
 - `serial`: the `Stream` object to use for Modbus communication. Usually something like `Serial1`.
 - `dePin`: the driver enable pin. This pin is set HIGH when transmitting. If this parameter is set to `-1`, this feature will be disabled. The default value is `-1`. Allowed data types are `int8_t` or `char`.
-- `rePin`: works exacly the same way as `dePin`. This option is included for compatibility with RS-485 shields like the [Arduino MKR 485 Shield](https://store.arduino.cc/products/arduino-mkr-485-shield).
+- `rePin`: is always set `LOW`. If this parameter is set to `-1`, this feature will be disabled.
 
 ### Example
 ``` C++
@@ -187,9 +193,10 @@ If this function is not run, the library will assume there are no input register
   <blockquote>
 
 ### Description
-Sets an optional response delay (in ms) for the slave (default 0).
-If set to a non-zero value, the slave will wait for the specified number of milliseconds before sending the response.
-This may be useful if tight control over the dePin from the master is not possible. Adding a delay will allow the master enough time to stop transmitting and avoid issues with multiple drivers on the the physical pins.
+Sets an optional delay in milliseconds between when a request from a master device has been processed and when the slave device sends its response.
+By default this value is `0`.
+This may be useful when tight control over the DE pin of an RS-485 transceiver on a master device is not possible.
+Adding a delay will give the master more time to set the DE pin `LOW` and avoid issues with multiple active drivers on the RS-485 bus.
 
 ### Syntax
 `modbus.setResponseDelay(responseDelay)`
@@ -197,6 +204,8 @@ This may be useful if tight control over the dePin from the master is not possib
 ### Parameters
 - `modbus`: a `ModbusRTUSlave` object.
 - `responseDelay`: number of milliseconds to wait before responding to requests. Allowed data types: `unsigned long`.
+
+*This function should only be used as a last resort.*
 
   </blockquote>
 </details>
@@ -238,7 +247,7 @@ Optionally it also sets the data configuration. Note, there must be 8 data bits 
 Checks if any Modbus requests are available.
 If a valid write request has been received, it will update the appropriate data array, and send an acknowledgment response.
 If a valid read request has been received, it will send a response with the requested data.
-If an invalid request has been received, it will either respond with an exception response or not at all, as per the Modbus specification. 
+If an invalid request has been received, it will either respond with an exception response or not at all, as per the Modbus specification.
 This function should be called frequently.
 
 ### Syntax
@@ -246,6 +255,12 @@ This function should be called frequently.
 
 ### Parameters
 - `modbus`: a `ModbusRTUSlave` object.
+
+### Returns
+- `true` if a valid Modbus request was received and processed.
+- `false` if no valid Modbus request was received.
+
+*It is not essential that this value be read.*
 
 ### Example
 ``` C++
@@ -285,4 +300,3 @@ void loop() {
 
   </blockquote>
 </details>
-

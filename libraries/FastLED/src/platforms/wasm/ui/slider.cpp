@@ -5,8 +5,8 @@
 
 #include "platforms/wasm/js.h"
 #include "ui_manager.h"
-#include "json.h"
-#include "namespace.h"
+#include "fl/json.h"
+#include "fl/namespace.h"
 
 using namespace fl;
 
@@ -16,13 +16,16 @@ FASTLED_NAMESPACE_BEGIN
 
 jsSlider::jsSlider(const Str& name, float value, float min, float max, float step)
     : mMin(min), mMax(max), mValue(value), mStep(step) {
+    if (mStep == -1.f) {
+        mStep = (mMax - mMin) / 100.0f;
+    }
     auto updateFunc = jsUiInternal::UpdateFunction(this, [](void* self, const FLArduinoJson::JsonVariantConst& json) {
         static_cast<jsSlider*>(self)->updateInternal(json);
     });
     auto toJsonFunc = jsUiInternal::ToJsonFunction(this, [](void* self, FLArduinoJson::JsonObject& json) {
         static_cast<jsSlider*>(self)->toJson(json);
     });
-    mInternal = jsUiInternalRef::New(name, std::move(updateFunc), std::move(toJsonFunc));
+    mInternal = jsUiInternalPtr::New(name, std::move(updateFunc), std::move(toJsonFunc));
     jsUiManager::addComponent(mInternal);
 }
 
@@ -63,7 +66,7 @@ void jsSlider::setValue(float value) {
         const Str& name = mInternal->name();
         int id = mInternal->id();
         printf(
-            "Warning: Slider %s with id %d value %f was clamped to range [%f, %f] -> %f\n",
+            "Warning: UISlider %s with id %d value %f was clamped to range [%f, %f] -> %f\n",
             name.c_str(), id,
             value, mMin, mMax, mValue);
     }

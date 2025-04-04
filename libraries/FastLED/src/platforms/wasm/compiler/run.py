@@ -6,7 +6,9 @@ from typing import Tuple
 import warnings
 from pathlib import Path
 
-_PORT = 80
+from code_sync import sync_source_directory_if_volume_is_mapped
+
+_PORT = os.environ.get("PORT", 80)
 
 _CHOICES = [
     "compile",
@@ -14,6 +16,42 @@ _CHOICES = [
 ]
 
 HERE = Path(__file__).parent
+
+# if [ "$RENDER" != "true" ]; then
+#   echo "Skipping finalprewarm..."
+#   exit 0
+# fi
+
+# git_path=/git/fastled
+# fastled_path=/js/fastled
+
+# # update the fastled git repo
+# cd $git_path
+
+# git fetch origin
+# git reset --hard origin/master
+# #  ["rsync", "-av", "--info=NAME", "--delete", f"{src}/", f"{dst}/"],
+
+# cd /js
+
+# rsync -av --info=NAME --delete "$git_path/" "$fastled_path/"  --exclude ".git"
+
+def _update_fastled() -> None:
+    # NOT ENABLED YET
+    if True:
+        return
+    is_render = os.environ.get("RENDER", "false") == "true"
+    if not is_render:
+        print("Skipping finalprewarm...")
+        return
+    git_path = "/git/fastled"
+    fastled_path = "/js/fastled"
+    subprocess.run(["git", "fetch", "origin"], cwd=git_path)
+    subprocess.run(["git", "reset", "--hard", "origin/master"], cwd=git_path)
+    subprocess.run(["rsync", "-av", "--info=NAME", "--delete", f"{git_path}/", f"{fastled_path}/", "--exclude", ".git"], cwd="/js")
+
+
+
 
 def _parse_args() -> Tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(description="Run compile.py with additional arguments")
@@ -65,7 +103,10 @@ def _run_compile(unknown_args: list[str]) -> int:
     return result.returncode
 
 def main() -> int:
+    print("Running...")
     args, unknown_args = _parse_args()
+    _update_fastled()
+    sync_source_directory_if_volume_is_mapped()
 
     try:
         if args.mode == "compile":

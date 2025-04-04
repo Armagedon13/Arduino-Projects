@@ -1,7 +1,7 @@
-#ifndef __INC_PIXELS_H
-#define __INC_PIXELS_H
+#pragma once
 
-#include "FastLED.h"
+/// @file pixeltypes.h
+/// Includes defintions for RGB and HSV pixels
 
 #include <stdint.h>
 #include "lib8tion.h"
@@ -10,5 +10,3 @@
 #include "chsv.h"
 #include "crgb.hpp"
 
-
-#endif

@@ -99,14 +99,15 @@
 
 #pragma once
 
-#ifndef FASTLED_INTERNAL
+#ifdef FASTLED_INTERNAL
+#error "This should only be active for includion of FastLED.h in a sketch."
+#endif
 #pragma message                                                                \
     "NOTE: ESP32 support using I2S parallel driver. All strips must use the same chipset"
-#endif
 
 #include "eorder.h"
-#include "i2s.h"
-#include "namespace.h"
+#include "platforms/esp/32/i2s/i2s_esp32dev.h"
+#include "fl/namespace.h"
 
 FASTLED_NAMESPACE_BEGIN
 
@@ -165,18 +166,17 @@ class ClocklessController : public CPixelLEDController<RGB_ORDER> {
 
   public:
     void init() {
-        if (i2s_is_initialized())
-            return;
-
         // -- Allocate space to save the pixel controller
         //    during parallel output
         mPixels = (PixelController<RGB_ORDER> *)malloc(
             sizeof(PixelController<RGB_ORDER>));
 
         // -- Construct the bit patterns for ones and zeros
-        i2s_define_bit_patterns(T1, T2, T3);
-        i2s_init(I2S_DEVICE);
-        i2s_set_fill_buffer_callback(fillBuffer);
+        if (!i2s_is_initialized()) {
+            i2s_define_bit_patterns(T1, T2, T3);
+            i2s_init(I2S_DEVICE);
+            i2s_set_fill_buffer_callback(fillBuffer);
+        }
 
         gControllers[gNumControllers] = this;
         int my_index = gNumControllers;

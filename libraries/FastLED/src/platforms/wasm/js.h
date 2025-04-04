@@ -14,10 +14,10 @@
 #include "fl/str.h"
 #include "ui/ui_internal.h"
 #include "fl/str.h"
-#include "engine_events.h"
-#include "namespace.h"
-#include "screenmap.h"
-#include "ref.h"
+#include "fl/engine_events.h"
+#include "fl/namespace.h"
+#include "fl/screenmap.h"
+#include "fl/ptr.h"
 #include "active_strip_data.h"
 
 
@@ -36,16 +36,21 @@ EMSCRIPTEN_KEEPALIVE uint32_t micros();
 EMSCRIPTEN_KEEPALIVE void delay(int ms);
 }
 
-FASTLED_NAMESPACE_BEGIN
 
-// Sets the canvas size. This assumes one strip per row. This is
-// method is pretty inflexible and is likely to change in the future.
-void jsSetCanvasSize(int cledcontroler_id, int width, int height);
+
+//////////////////////////////////////////////////////////////////////////
+// BEGIN EMSCRIPTEN EXPORTS
+EMSCRIPTEN_KEEPALIVE extern "C" int extern_setup();
+EMSCRIPTEN_KEEPALIVE extern "C" int extern_loop();
+
+
+namespace fl {
+
 
 class jsSlider {
   public:
     jsSlider(const fl::Str& name, float value = 128.0f, float min = 0.0f, float max = 255.0f,
-             float step = 1.0f);
+             float step = -1.f);
     ~jsSlider();
     jsSlider& Group(const fl::Str& name) { mGroup = name; return *this; }
 
@@ -73,7 +78,7 @@ class jsSlider {
   private:
     void updateInternal(const FLArduinoJson::JsonVariantConst& value);
 
-    jsUiInternalRef mInternal;
+    jsUiInternalPtr mInternal;
     float mMin;
     float mMax;
     float mValue;
@@ -106,7 +111,7 @@ class jsNumberField {
   private:
     void updateInternal(const FLArduinoJson::JsonVariantConst& value);
 
-    jsUiInternalRef mInternal;
+    jsUiInternalPtr mInternal;
     double mValue;
     double mMin;
     double mMax;
@@ -134,7 +139,7 @@ class jsCheckbox {
   private:
     void updateInternal(const FLArduinoJson::JsonVariantConst& value);
 
-    jsUiInternalRef mInternal;
+    jsUiInternalPtr mInternal;
     bool mValue;
     fl::Str mGroup;
 };
@@ -152,19 +157,23 @@ class jsButton {
         bool clickedHappened = mPressed && (mPressed != mPressedLast);
         return mClickedHappened;
     }
+    int clickedCount() const { return mClickedCount; }
     operator bool() const { return clicked(); }
     const fl::Str& groupName() const { return mGroup; }
 
   private:
-    struct Updater : EngineEvents::Listener {
+    struct Updater : fl::EngineEvents::Listener {
         void init(jsButton *owner) {
             mOwner = owner;
-            EngineEvents::addListener(this);
+            fl::EngineEvents::addListener(this);
         }
-        ~Updater() { EngineEvents::removeListener(this); }
+        ~Updater() { fl::EngineEvents::removeListener(this); }
         void onPlatformPreLoop2() override {
             mOwner->mClickedHappened = mOwner->mPressed && (mOwner->mPressed != mOwner->mPressedLast);
             mOwner->mPressedLast = mOwner->mPressed;
+            if (mOwner->mClickedHappened) {
+                mOwner->mClickedCount++;
+            }
         }
         jsButton *mOwner = nullptr;
     };
@@ -173,10 +182,11 @@ class jsButton {
 
     void updateInternal(const FLArduinoJson::JsonVariantConst& value);
 
-    jsUiInternalRef mInternal;
+    jsUiInternalPtr mInternal;
     bool mPressed = false;
     bool mPressedLast = false;
     bool mClickedHappened = false;
+    int mClickedCount = 0;
     fl::Str mGroup;
 };
 
@@ -192,7 +202,7 @@ class jsTitle {
     const fl::Str& text() const { return mText; }
 
   private:
-    jsUiInternalRef mInternal;
+    jsUiInternalPtr mInternal;
     fl::Str mGroup;
     fl::Str mText;
 };
@@ -209,15 +219,13 @@ class jsDescription {
     const fl::Str& text() const { return mText; }
 
   private:
-    jsUiInternalRef mInternal;
+    jsUiInternalPtr mInternal;
     fl::Str mGroup;
     fl::Str mText;
 };
 
 
-void jsSetCanvasSize(const char* jsonString, size_t jsonSize);
-void jsSetCanvasSize(int cledcontoller_id, uint16_t width, uint16_t height);
-void jsSetCanvasSize(int cledcontoller_id, const ScreenMap& screenmap);
+void jsSetCanvasSize(int cledcontoller_id, const fl::ScreenMap& screenmap);
 void jsOnFrame(ActiveStripData& active_strips);
 void jsOnStripAdded(uintptr_t strip, uint32_t num_leds);
 void updateJs(const char* jsonStr);
@@ -231,12 +239,12 @@ void updateJs(const char* jsonStr);
 #define FASTLED_HAS_UI_TITLE 1
 #define FASTLED_HAS_UI_DESCRIPTION 1
 
-typedef jsNumberField NumberField;
-typedef jsSlider Slider;
-typedef jsCheckbox Checkbox;
-typedef jsButton Button;
-typedef jsTitle Title;
-typedef jsDescription Description;
+typedef jsNumberField UINumberField;
+typedef jsSlider UISlider;
+typedef jsCheckbox UICheckbox;
+typedef jsButton UIButton;
+typedef jsTitle UITitle;
+typedef jsDescription UIDescription;
 
 
-FASTLED_NAMESPACE_END
+}  // namespace fl

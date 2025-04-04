@@ -26,7 +26,7 @@ License CC BY-NC 3.0
 
 */
 
-#include <vector>  // ok include
+#include "fl/vector.h"
 #include <math.h>  // ok include
 #include <stdint.h>
 
@@ -51,8 +51,9 @@ License CC BY-NC 3.0
 
 
 
-#include "force_inline.h"
-#include "namespace.h"
+#include "fl/force_inline.h"
+#include "crgb.h"
+#include "fl/namespace.h"
 
 // Setting this to 1 means you agree to the licensing terms of the ANIMartRIX library for non commercial use only.
 #if defined(FASTLED_ANIMARTRIX_LICENSING_AGREEMENT) || (FASTLED_ANIMARTRIX_LICENSING_AGREEMENT != 0)
@@ -73,6 +74,7 @@ License CC BY-NC 3.0
 #define num_oscillators 10
 
 namespace animartrix_detail {
+FASTLED_USING_NAMESPACE
 
 struct render_parameters {
 
@@ -160,9 +162,9 @@ class ANIMartRIX {
     modulators move; // all oscillator based movers and shifters at one place
     rgb pixel;
 
-    std::vector<std::vector<float>>
+    fl::HeapVector<fl::HeapVector<float>>
         polar_theta; // look-up table for polar angles
-    std::vector<std::vector<float>>
+    fl::HeapVector<fl::HeapVector<float>>
         distance; // look-up table for polar distances
 
     unsigned long a, b, c; // for time measurements
@@ -199,6 +201,8 @@ class ANIMartRIX {
             (num_x / 2) - 0.5,
             (num_y / 2) - 0.5); // precalculate all polar coordinates
                                 // polar origin is set to matrix centre
+        // set default speed ratio for the oscillators, not all effects set their own, so start from know state
+        timings.master_speed = 0.01;
     }
 
     /**
@@ -310,9 +314,8 @@ class ANIMartRIX {
         }
     }
 
-    void run_default_oscillators() {
-
-        timings.master_speed = 0.005; // master speed
+    void run_default_oscillators(float master_speed = 0.005) {        
+        timings.master_speed = master_speed;
 
         timings.ratio[0] = 1; // speed ratios for the oscillators, higher values
                               // = faster transitions
@@ -381,9 +384,8 @@ class ANIMartRIX {
     // the polar coordinates
 
     void render_polar_lookup_table(float cx, float cy) {
-
-        polar_theta.resize(num_x, std::vector<float>(num_y, 0.0f));
-        distance.resize(num_x, std::vector<float>(num_y, 0.0f));
+        polar_theta.resize(num_x, fl::HeapVector<float>(num_y, 0.0f));
+        distance.resize(num_x, fl::HeapVector<float>(num_y, 0.0f));
 
         for (int xx = 0; xx < num_x; xx++) {
             for (int yy = 0; yy < num_y; yy++) {
@@ -1121,9 +1123,9 @@ class ANIMartRIX {
         get_ready();
 
         timings.master_speed = 0.000001; // speed ratios for the oscillators
-        timings.ratio[0] = 4;           // higher values = faster transitions
-        timings.ratio[1] = 3.2;
-        timings.ratio[2] = 10;
+        timings.ratio[0] = 0.4;         // higher values = faster transitions
+        timings.ratio[1] = 0.32;
+        timings.ratio[2] = 0.10;
         timings.ratio[3] = 0.05;
         timings.ratio[4] = 0.6;
         timings.offset[0] = 0;
@@ -1391,8 +1393,7 @@ class ANIMartRIX {
     void Hot_Blob() { // nice one
 
         get_ready();
-
-        run_default_oscillators();
+        run_default_oscillators(0.001);
 
         for (int x = 0; x < num_x; x++) {
             for (int y = 0; y < num_y; y++) {
@@ -2451,7 +2452,7 @@ class ANIMartRIX {
 
         get_ready();
 
-        timings.master_speed = 0.03; // master speed
+        timings.master_speed = 0.005; // master speed
 
         timings.ratio[0] = 0.025; // speed ratios for the oscillators, higher
                                   // values = faster transitions

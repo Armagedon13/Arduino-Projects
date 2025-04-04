@@ -6,7 +6,7 @@
   
   Created: 2023-07-22
   By: C. M. Bulliner
-  Last Modified: 2024-10-26
+  Last Modified: 2025-01-03
   By: C. M. Bulliner
   
 */
@@ -20,9 +20,11 @@
 #elif defined(ARDUINO_NANO_ESP32)
   // On the Arduino Nano ESP32, the HardwareSerial port on pins 0 and 1 is Serial0.
   #define MODBUS_SERIAL Serial0
+#elif defined(ARDUINO_ARCH_STM32)
+  // On ST Nucleo-64 Boards, the HardwareSerial port on pins 0 and 1 is Serial2.
+  #define MODBUS_SERIAL Serial2
 #else
   // On the majority of Arduino boards, the HardwareSerial port on pins 0 and 1 is Serial1.
-  // On the Arduino Mega and Adruino Due, Serial1 is on pins 18 and 19.
   #define MODBUS_SERIAL Serial1
 #endif
 // You can change the baud, config, and unit id values if you like.
@@ -34,16 +36,16 @@
 #if (defined(ARDUINO_NANO_RP2040_CONNECT) && !defined(ARDUINO_ARCH_MBED)) || defined(ARDUINO_NANO_ESP32)
   // These boards operate unsing GPIO numbers that don't correspond to the numbers on the boards.
   // However they do have D# values #defined to correct this.
-  const int8_t buttonPins[2] = {D2, D3};
-  const int8_t ledPins[4] = {D5, D6, D7, D8};
-  const int8_t dePin = D13;
+  const int16_t buttonPins[2] = {D2, D3};
+  const int16_t ledPins[4] = {D5, D6, D7, D8};
+  const int16_t dePin = D13;
 #else
   // Other boards do not have D# values, and will throw an error if you try to use them.
-  const int8_t buttonPins[2] = {2, 3};
-  const int8_t ledPins[4] = {5, 6, 7, 8};
-  const int8_t dePin = 13;
+  const int16_t buttonPins[2] = {2, 3};
+  const int16_t ledPins[4] = {5, 6, 7, 8};
+  const int16_t dePin = 13;
 #endif
-const int8_t knobPins[2] = {A0, A1};
+const int16_t knobPins[2] = {A0, A1};
 
 ModbusRTUSlave modbus(MODBUS_SERIAL, dePin);
 
@@ -69,7 +71,7 @@ void setup() {
   pinMode(ledPins[2], OUTPUT);
   pinMode(ledPins[3], OUTPUT);
 
-  #if defined(ARDUINO_NANO_ESP32)
+  #if defined(ARDUINO_NANO_ESP32) || defined(ARDUINO_NANO_MATTER)
     analogReadResolution(10);
   #endif
 
@@ -87,7 +89,7 @@ void loop() {
   inputRegisters[1] = map(analogRead(knobPins[1]), 0, 1023, 0, 255);
   discreteInputs[0] = !digitalRead(buttonPins[0]);
   discreteInputs[1] = !digitalRead(buttonPins[1]);
-  
+
   modbus.poll();
 
   analogWrite(ledPins[0], holdingRegisters[0]);

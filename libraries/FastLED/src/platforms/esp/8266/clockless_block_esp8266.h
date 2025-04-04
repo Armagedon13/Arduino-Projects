@@ -2,8 +2,8 @@
 #define __INC_CLOCKLESS_BLOCK_ESP8266_H
 
 #include <stdint.h>
-#include "namespace.h"
-#include "register.h"
+#include "fl/namespace.h"
+#include "fl/register.h"
 #include "eorder.h"
 #include "transpose8x1_noinline.h"
 
@@ -11,7 +11,10 @@
 
 #define FIX_BITS(bits) (((bits & 0x0fL) << 12) | (bits & 0x30))
 
+#ifndef MIN
 #define MIN(X,Y) (((X)<(Y)) ? (X):(Y))
+#endif
+
 #define USED_LANES (MIN(LANES, 6))
 #define PORT_MASK (((1 << USED_LANES)-1) & 0x0000FFFFL)
 #define PIN_MASK FIX_BITS(PORT_MASK)

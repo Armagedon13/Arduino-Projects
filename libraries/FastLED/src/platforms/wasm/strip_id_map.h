@@ -4,9 +4,9 @@
 #include <stddef.h>
 #include <stdio.h>
 
-#include "singleton.h"
-#include "namespace.h"
-#include "fixed_map.h"
+#include "fl/singleton.h"
+#include "fl/namespace.h"
+#include "fl/map.h"
 
 // Define a reasonable maximum number of strips
 
@@ -113,10 +113,10 @@ public:
 
 private:
     static StripIdMap& Instance() {
-        return Singleton<StripIdMap>::instance();
+        return fl::Singleton<StripIdMap>::instance();
     }
-    FixedMap<CLEDController*, int, MAX_STRIPS> mStripMap;
-    FixedMap<int, CLEDController*, MAX_STRIPS> mOwnerMap;
+    fl::FixedMap<CLEDController*, int, MAX_STRIPS> mStripMap;
+    fl::FixedMap<int, CLEDController*, MAX_STRIPS> mOwnerMap;
     int mCounter = 0;
 };
 

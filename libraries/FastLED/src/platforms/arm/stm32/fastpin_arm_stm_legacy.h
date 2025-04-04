@@ -1,8 +1,8 @@
 #ifndef __FASTPIN_ARM_STM32_H
 #define __FASTPIN_ARM_STM32_H
 
-#include "force_inline.h"
-#include "namespace.h"
+#include "fl/force_inline.h"
+#include "fl/namespace.h"
 #include "armpin.h"
 
 FASTLED_NAMESPACE_BEGIN

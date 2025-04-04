@@ -1,9 +1,9 @@
 #pragma once
 
 #include <stdint.h>
-#include "namespace.h"
+#include "fl/namespace.h"
 
-FASTLED_NAMESPACE_BEGIN
+namespace fl {
 
 // Logic to control the progression of a transition over time.
 class Transition {
@@ -48,5 +48,5 @@ private:
 };
 
 
-FASTLED_NAMESPACE_END
+}  // namespace fl
 

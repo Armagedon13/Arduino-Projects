@@ -1,4 +1,5 @@
-
+/// @file five_bit_hd_gamma.cpp
+/// Defines functions for five-bit gamma correction
 
 #define FASTLED_INTERNAL 1
 #include "five_bit_hd_gamma.h"
@@ -9,7 +10,7 @@
 #include "lib8tion/math8.h"
 #include "lib8tion/scale8.h"
 #include "lib8tion/brightness_bitshifter.h"
-#include "namespace.h"
+#include "fl/namespace.h"
 
 
 // Author: Zach Vorhies
@@ -72,9 +73,14 @@ void five_bit_hd_gamma_function(CRGB rgb, uint16_t *r16, uint16_t *g16,
 
 uint8_t five_bit_bitshift(uint16_t r16, uint16_t g16, uint16_t b16,
                           uint8_t brightness, CRGB *out, uint8_t *out_power_5bit) {
-    if (!(r16 | g16 | b16) || brightness == 0) {
-        *out = CRGB(map16_to_8(r16), map16_to_8(g16), map16_to_8(b16));
-        *out_power_5bit = 31;
+    if (brightness == 0) {
+        *out = CRGB(0, 0, 0);
+        *out_power_5bit = 0;
+        return 0;
+    }
+    if (r16 == 0 && g16 == 0 && b16 == 0) {
+        *out = CRGB(0, 0, 0);
+        *out_power_5bit = (brightness <= 31) ? brightness : 31;
         return brightness;
     }
 

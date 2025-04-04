@@ -1,7 +1,12 @@
-/// @file    NoisePlusPalette.ino
-/// @brief   Demonstrates how to mix noise generation with color palettes on a
-/// 2D LED matrix
-/// @example NoisePlusPalette.ino
+/// @file    WasmScreenCoords.ino
+/// @brief   Simple test for screen coordinates in the web compiled version of FastLED.
+/// @author  Zach Vorhies
+///
+/// This sketch is fully compatible with the FastLED web compiler. To use it do the following:
+/// 1. Install Fastled: `pip install fastled`
+/// 2. cd into this examples page.
+/// 3. Run the FastLED web compiler at root: `fastled`
+
 
 // printf
 #include <stdio.h>
@@ -9,10 +14,10 @@
 #include <vector>
 
 #include <FastLED.h>
-#include "json.h"
-#include "slice.h"
-#include "screenmap.h"
-#include "math_macros.h"
+#include "fl/json.h"
+#include "fl/slice.h"
+#include "fl/screenmap.h"
+#include "fl/math_macros.h"
 
 
 

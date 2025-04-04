@@ -1,15 +1,14 @@
 #include <stdlib.h>
 
 #include "fl/str.h"
-#include "namespace.h"
+#include "fl/namespace.h"
 
 
 namespace fl {
 
 namespace string_functions {
-// Yet, another good itoa implementation
-// returns: the length of the number string
-int itoa(int value, char *sp, int radix) {
+
+static int itoa(int value, char *sp, int radix) {
     char tmp[16]; // be careful with the length of the buffer
     char *tp = tmp;
     int i;
@@ -23,7 +22,7 @@ int itoa(int value, char *sp, int radix) {
 
     while (v || tp == tmp) {
         i = v % radix;
-        v /= radix;
+        v = radix ? v / radix : 0;
         if (i < 10)
             *tp++ = i + '0';
         else
@@ -43,7 +42,7 @@ int itoa(int value, char *sp, int radix) {
     return len;
 }
 
-float atoff(const char *str, size_t len) {
+static float atoff(const char *str, size_t len) {
     float result = 0.0f;    // The resulting number
     float sign = 1.0f;      // Positive or negative
     float fraction = 0.0f;  // Fractional part
@@ -97,23 +96,18 @@ float atoff(const char *str, size_t len) {
 
 } // namespace string_functions
 
-void StringFormatter::append(int val, StrN<64> *dst) {
-    char buf[63];
-    string_functions::itoa(val, buf, 63);
-    dst->append(buf);
+void StringFormatter::append(int32_t val, StrN<64> *dst) {
+    char buf[63] = {0};
+    string_functions::itoa(val, buf, 10);
+    dst->write(buf, strlen(buf));
 }
-
 StringHolder::StringHolder(const char *str) {
-    mLength = strlen(str);
-    mData = (char *)malloc(mLength + 1);
-    if (mData) {
-        memcpy(mData, str, mLength + 1);
-    } else {
-        mLength = 0;
-    }
-    mCapacity = mLength;
+    mLength = strlen(str);  // Don't include null terminator in length
+    mCapacity = mLength + 1;  // Capacity includes null terminator
+    mData = new char[mCapacity];
+    memcpy(mData, str, mLength);
+    mData[mLength] = '\0';
 }
-
 StringHolder::StringHolder(size_t length) {
     mData = (char *)malloc(length + 1);
     if (mData) {

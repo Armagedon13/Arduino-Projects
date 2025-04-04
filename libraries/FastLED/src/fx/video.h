@@ -2,65 +2,104 @@
 
 #include <stdint.h>
 
-#include "namespace.h"
-#include "ref.h"
-#include "fx/fx2d.h"
+#include "fl/namespace.h"
+#include "fl/ptr.h"
+#include "fx/fx1d.h"
 #include "fx/time.h"
+#include "fl/str.h"
 
 
 FASTLED_NAMESPACE_BEGIN
-
-// Forward declare dependencies.
-FASTLED_SMART_REF(VideoImpl);
-FASTLED_SMART_REF(ByteStream);
-FASTLED_SMART_REF(FileHandle);
-FASTLED_SMART_REF(VideoFx);
-FASTLED_SMART_REF(Frame);
 struct CRGB;
+FASTLED_NAMESPACE_END
+
+namespace fl {
+
+// Forward declare classes
+FASTLED_SMART_PTR(FileHandle);
+FASTLED_SMART_PTR(ByteStream);
+FASTLED_SMART_PTR(Frame);
+FASTLED_SMART_PTR(VideoImpl);
+FASTLED_SMART_PTR(VideoFxWrapper);
+FASTLED_SMART_PTR(ByteStreamMemory);
+
 
 // Video represents a video file that can be played back on a LED strip.
 // The video file is expected to be a sequence of frames. You can either use
 // a file handle or a byte stream to read the video data.
-class Video {
+class Video : public Fx1d {  // Fx1d because video can be irregular.
 public:
+    static size_t DefaultFrameHistoryCount() {
+        #ifdef __AVR__
+        return 1;
+        #else
+        return 2;  // Allow interpolation by default.
+        #endif
+    }
     // frameHistoryCount is the number of frames to keep in the buffer after draw. This
-    // allows for time based effects like syncing video speed to audio triggers.
-    Video();  // Please use FileSytem to construct a Video.
-    Video(FileHandleRef h, size_t pixelsPerFrame, float fps = 30.0f, size_t frameHistoryCount = 0);
-    Video(ByteStreamRef s, size_t pixelsPerFrame, float fps = 30.0f, size_t frameHistoryCount = 0);
+    // allows for time based effects like syncing video speed to audio triggers. If you are
+    // using a filehandle for you video then you can just leave this as the default. For streaming
+    // byte streams you may want to increase this number to allow momentary re-wind. If you'd
+    // like to use a Video as a buffer for an fx effect then please see VideoFxWrapper.
+    Video();
+    Video(size_t pixelsPerFrame, float fps = 30.0f, size_t frameHistoryCount = DefaultFrameHistoryCount());  // Please use FileSytem to construct a Video.
     ~Video();
     Video(const Video&);
     Video& operator=(const Video&);
+
+    // Fx Api
+    void draw(DrawContext context) override;
+    Str fxName() const override;
+
     // Api
-    void begin(FileHandleRef h, size_t pixelsPerFrame, float fps = 30.0f, size_t frameHistoryCount = 0);
-    void beginStream(ByteStreamRef s, size_t pixelsPerFrame, float fps = 30.0f, size_t frameHistoryCount = 0);
-    bool draw(uint32_t now, CRGB* leds, uint8_t* alpha = nullptr);
+    bool begin(fl::FileHandlePtr h);
+    bool beginStream(fl::ByteStreamPtr s);
+    bool draw(uint32_t now, CRGB* leds);
     bool draw(uint32_t now, Frame* frame);
     void end();
     bool finished();
     bool rewind();
-    void setScale(float timeScale);
-    float scale() const;
+    void setTimeScale(float timeScale);
+    float timeScale() const;
+    Str error() const;
+    void setError(const Str& error) { mError = error; }
+    size_t pixelsPerFrame() const;
+    void pause(uint32_t now) override;
+    void resume(uint32_t now) override;
+    void setFade(uint32_t fadeInTime, uint32_t fadeOutTime);
+    int32_t durationMicros() const;  // -1 if this is a stream.
 
     // make compatible with if statements
     operator bool() const { return mImpl.get(); }
 private:
     bool mFinished = false;
-    VideoImplRef mImpl;
-    TimeScaleRef mTimeScale;
+    VideoImplPtr mImpl;
+    Str mError;
+    Str mName;
 };
 
 
-class VideoFx : public FxGrid {
+
+// Wraps an Fx and stores a history of video frames. This allows
+// interpolation between frames for FX for smoother effects.
+// It also allows re-wind on fx that gnore time and always generate
+// the next frame based on the previous frame and internal speed,
+// for example NoisePalette.
+class VideoFxWrapper : public Fx1d {
   public:
-    VideoFx(Video video, XYMap xymap);
+    VideoFxWrapper(FxPtr fx);
+    ~VideoFxWrapper() override;
     void draw(DrawContext context) override;
-    const char *fxName(int) const override;
+    Str fxName() const override;
+    void setFade(uint32_t fadeInTime, uint32_t fadeOutTime);
 
   private:
-    Video mVideo;
-    FrameRef mFrame;
+    FxPtr mFx;
+    VideoImplPtr mVideo;
+    ByteStreamMemoryPtr mByteStream;
+    float mFps = 30.0f;
 };
 
-FASTLED_NAMESPACE_END
+
+}  // namespace fl
 

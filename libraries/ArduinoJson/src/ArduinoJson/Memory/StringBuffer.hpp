@@ -1,5 +1,5 @@
 // ArduinoJson - https://arduinojson.org
-// Copyright © 2014-2024, Benoit BLANCHON
+// Copyright © 2014-2025, Benoit BLANCHON
 // MIT License
 
 #pragma once
@@ -55,7 +55,7 @@ class StringBuffer {
   JsonString str() const {
     ARDUINOJSON_ASSERT(node_ != nullptr);
 
-    return JsonString(node_->data, node_->length, JsonString::Copied);
+    return JsonString(node_->data, node_->length);
   }
 
  private:

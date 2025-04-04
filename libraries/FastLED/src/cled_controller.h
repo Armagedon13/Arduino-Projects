@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 
-/// @file controller.h
+/// @file cled_controller.h
 /// base definitions used by led controllers for writing out led data
 
 #include "FastLED.h"
@@ -10,12 +10,14 @@
 #include "pixeltypes.h"
 #include "color.h"
 
-#include "force_inline.h"
+#include "fl/force_inline.h"
+#include "fl/unused.h"
 #include "pixel_controller.h"
 #include "dither_mode.h"
 #include "pixel_iterator.h"
-#include "engine_events.h"
-#include "screenmap.h"
+#include "fl/engine_events.h"
+#include "fl/screenmap.h"
+#include "fl/virtual_if_not_avr.h"
 
 FASTLED_NAMESPACE_BEGIN
 
@@ -39,10 +41,12 @@ protected:
     CRGB m_ColorCorrection;    ///< CRGB object representing the color correction to apply to the strip on show()  @see setCorrection
     CRGB m_ColorTemperature;   ///< CRGB object representing the color temperature to apply to the strip on show() @see setTemperature
     EDitherMode m_DitherMode;  ///< the current dither mode of the controller
+    bool m_enabled = true;
     int m_nLeds;               ///< the number of LEDs in the LED data array
     static CLEDController *m_pHead;  ///< pointer to the first LED controller in the linked list
     static CLEDController *m_pTail;  ///< pointer to the last LED controller in the linked list
 
+public:
 
     /// Set all the LEDs to a given color. 
     /// @param data the CRGB color to set the LEDs to
@@ -56,7 +60,6 @@ protected:
     /// @param scale the rgb scaling to apply to each led before writing it out
     virtual void show(const struct CRGB *data, int nLeds, uint8_t brightness) = 0;
 
-public:
 
     Rgbw mRgbMode = RgbwInvalid::value();
     CLEDController& setRgbw(const Rgbw& arg = RgbwDefault::value()) {
@@ -65,37 +68,40 @@ public:
         mRgbMode = arg;
         return *this;  // builder pattern.
     }
-    Rgbw getRgbw() const { return mRgbMode; }
 
-    /// Create an led controller object, add it to the chain of controllers
-    CLEDController() : m_Data(NULL), m_ColorCorrection(UncorrectedColor), m_ColorTemperature(UncorrectedTemperature), m_DitherMode(BINARY_DITHER), m_nLeds(0) {
-        m_pNext = NULL;
-        if(m_pHead==NULL) { m_pHead = this; }
-        if(m_pTail != NULL) { m_pTail->m_pNext = this; }
-        m_pTail = this;
-    }
+    void setEnabled(bool enabled) { m_enabled = enabled; }
+    bool getEnabled() { return m_enabled; }
+
+    CLEDController();
+    // If we added virtual to the AVR boards then we are going to add 600 bytes of memory to the binary
+    // flash size. This is because the virtual destructor pulls in malloc and free, which are the largest
+    // Testing shows that this virtual destructor adds a 600 bytes to the binary on
+    // attiny85 and about 1k for the teensy 4.X series.
+    // Attiny85:
+    //   With CLEDController destructor virtual: 11018 bytes to binary.
+    //   Without CLEDController destructor virtual: 10666 bytes to binary.
+    VIRTUAL_IF_NOT_AVR ~CLEDController();
+
+    Rgbw getRgbw() const { return mRgbMode; }
 
     /// Initialize the LED controller
     virtual void init() = 0;
 
     /// Clear out/zero out the given number of LEDs.
     /// @param nLeds the number of LEDs to clear
-    virtual void clearLeds(int nLeds = -1) {
+    VIRTUAL_IF_NOT_AVR void clearLeds(int nLeds = -1) {
         clearLedDataInternal(nLeds);
+        showLeds(0);
     }
 
-    inline ColorAdjustment getAdjustmentData(uint8_t brightness) {
-        // *premixed = getAdjustment(brightness);
-        // if (color_correction) {
-        //     *color_correction = getAdjustment(255);
-        // }
-        #if FASTLED_HD_COLOR_MIXING
-        ColorAdjustment out = {getAdjustment(brightness), getAdjustment(255), brightness};
-        #else
-        ColorAdjustment out = {getAdjustment(brightness)};
-        #endif
-        return out;
+    // Compatibility with the 3.8.x codebase.
+    VIRTUAL_IF_NOT_AVR void showLeds(uint8_t brightness) {
+        void* data = beginShowLeds(m_nLeds);
+        showLedsInternal(brightness);
+        endShowLeds(data);
     }
+
+    ColorAdjustment getAdjustmentData(uint8_t brightness);
 
     /// @copybrief show(const struct CRGB*, int, CRGB)
     ///
@@ -105,7 +111,9 @@ public:
     /// @param brightness the brightness of the LEDs
     /// @see show(const struct CRGB*, int, CRGB)
     void showInternal(const struct CRGB *data, int nLeds, uint8_t brightness) {
-        show(data, nLeds,brightness);
+        if (m_enabled) {
+           show(data, nLeds,brightness);
+        }
     }
 
     /// @copybrief showColor(const struct CRGB&, int, CRGB)
@@ -116,14 +124,18 @@ public:
     /// @param brightness the brightness of the LEDs
     /// @see showColor(const struct CRGB&, int, CRGB)
     void showColorInternal(const struct CRGB &data, int nLeds, uint8_t brightness) {
-        showColor(data, nLeds, brightness);
+        if (m_enabled) {
+            showColor(data, nLeds, brightness);
+        }
     }
 
     /// Write the data to the LEDs managed by this controller
     /// @param brightness the brightness of the LEDs
     /// @see show(const struct CRGB*, int, uint8_t)
     void showLedsInternal(uint8_t brightness) {
-        show(m_Data, m_nLeds, brightness);
+        if (m_enabled) {
+            show(m_Data, m_nLeds, brightness);
+        }
     }
 
     /// @copybrief showColor(const struct CRGB&, int, CRGB)
@@ -132,7 +144,9 @@ public:
     /// @param brightness the brightness of the LEDs
     /// @see showColor(const struct CRGB&, int, CRGB)
     void showColorInternal(const struct CRGB & data, uint8_t brightness) {
-        showColor(data, m_nLeds, brightness);
+        if (m_enabled) {
+            showColor(data, m_nLeds, brightness);
+        }
     }
 
     /// Get the first LED controller in the linked list of controllers
@@ -153,13 +167,7 @@ public:
     }
 
     /// Zero out the LED data managed by this controller
-    void clearLedDataInternal(int nLeds = -1) {
-        if(m_Data) {
-            nLeds = (nLeds < 0) ? m_nLeds : nLeds;
-            nLeds = (nLeds > m_nLeds) ? m_nLeds : nLeds;
-            memset((void*)m_Data, 0, sizeof(struct CRGB) * nLeds);
-        }
-    }
+    void clearLedDataInternal(int nLeds = -1);
 
     /// How many LEDs does this controller manage?
     /// @returns CLEDController::m_nLeds
@@ -183,27 +191,28 @@ public:
     /// @returns a reference to the controller
     inline CLEDController & setDither(uint8_t ditherMode = BINARY_DITHER) { m_DitherMode = ditherMode; return *this; }
 
-    CLEDController& setScreenMap(const XYMap& map) {
+    CLEDController& setScreenMap(const fl::XYMap& map) {
         // EngineEvents::onCanvasUiSet(this, map);
-        ScreenMap screenmap = map.toScreenMap();
-        EngineEvents::onCanvasUiSet(this, screenmap);
+        fl::ScreenMap screenmap = map.toScreenMap();
+        fl::EngineEvents::onCanvasUiSet(this, screenmap);
         return *this;
     }
 
-    CLEDController& setScreenMap(const ScreenMap& map) {
-        EngineEvents::onCanvasUiSet(this, map);
+    CLEDController& setScreenMap(const fl::ScreenMap& map) {
+        fl::EngineEvents::onCanvasUiSet(this, map);
         return *this;
     }
 
     CLEDController& setScreenMap(uint16_t width, uint16_t height) {
-        return setScreenMap(XYMap::constructRectangularGrid(width, height));
+        return setScreenMap(fl::XYMap::constructRectangularGrid(width, height));
     }
 
     /// Get the dithering option currently set for this controller
     /// @return the currently set dithering option (CLEDController::m_DitherMode)
     inline uint8_t getDither() { return m_DitherMode; }
 
-    virtual void* beginShowLeds() {
+    virtual void* beginShowLeds(int size) {
+        FASTLED_UNUSED(size);
         // By default, emit an integer. This integer will, by default, be passed back.
         // If you override beginShowLeds() then
         // you should also override endShowLeds() to match the return state.
@@ -220,6 +229,7 @@ public:
         void* out = reinterpret_cast<void*>(d);
         return out;
     }
+
     virtual void endShowLeds(void* data) {
         // By default recieves the integer that beginShowLeds() emitted.
         //For async controllers this should be used to signal the controller
@@ -248,7 +258,7 @@ public:
     /// @copydoc setTemperature()
     CLEDController & setTemperature(ColorTemperature temperature) { m_ColorTemperature = temperature; return *this; }
 
-    /// Get the color temperature, aka whipe point, for this controller
+    /// Get the color temperature, aka white point, for this controller
     /// @returns the current color temperature (CLEDController::m_ColorTemperature)
     CRGB getTemperature() { return m_ColorTemperature; }
 

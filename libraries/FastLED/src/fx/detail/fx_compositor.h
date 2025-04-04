@@ -4,11 +4,11 @@
 #include <string.h>
 
 #include "crgb.h"
-#include "fixed_vector.h"
+#include "fl/vector.h"
 #include "fx/fx.h"
 #include "fx/detail/fx_layer.h"
-#include "namespace.h"
-#include "ref.h"
+#include "fl/namespace.h"
+#include "fl/ptr.h"
 
 
 
@@ -16,17 +16,17 @@
 #define FASTLED_FX_ENGINE_MAX_FX 64
 #endif
 
-FASTLED_NAMESPACE_BEGIN
+namespace fl {
 
 // Takes two fx layers and composites them together to a final output buffer.
 class FxCompositor {
 public:
-    FxCompositor(uint16_t numLeds) : mNumLeds(numLeds) {
-        mLayers[0] = FxLayerRef::New();
-        mLayers[1] = FxLayerRef::New();
+    FxCompositor(uint32_t numLeds) : mNumLeds(numLeds) {
+        mLayers[0] = FxLayerPtr::New();
+        mLayers[1] = FxLayerPtr::New();
     }
 
-    void startTransition(uint32_t now, uint32_t duration, Ref<Fx> nextFx) {
+    void startTransition(uint32_t now, uint32_t duration, fl::Ptr<Fx> nextFx) {
         completeTransition();
         if (duration == 0) {
             mLayers[0]->setFx(nextFx);
@@ -48,13 +48,13 @@ public:
 
 private:
     void swapLayers() {
-        FxLayerRef tmp = mLayers[0];
+        FxLayerPtr tmp = mLayers[0];
         mLayers[0] = mLayers[1];
         mLayers[1] = tmp;
     }
 
-    FxLayerRef mLayers[2];
-    const uint16_t mNumLeds;
+    FxLayerPtr mLayers[2];
+    const uint32_t mNumLeds;
     Transition mTransition;
 };
 
@@ -72,7 +72,7 @@ inline void FxCompositor::draw(uint32_t now, uint32_t warpedTime, CRGB *finalBuf
     const CRGB* surface0 = mLayers[0]->getSurface();
     const CRGB* surface1 = mLayers[1]->getSurface();
 
-    for (uint16_t i = 0; i < mNumLeds; i++) {
+    for (uint32_t i = 0; i < mNumLeds; i++) {
         const CRGB& p0 = surface0[i];
         const CRGB& p1 = surface1[i];
         CRGB out = CRGB::blend(p0, p1, progress);
@@ -83,4 +83,4 @@ inline void FxCompositor::draw(uint32_t now, uint32_t warpedTime, CRGB *finalBuf
     }
 }
 
-FASTLED_NAMESPACE_END
+}  // namespace fl

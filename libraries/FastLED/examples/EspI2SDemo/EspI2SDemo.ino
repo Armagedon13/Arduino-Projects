@@ -1,8 +1,15 @@
+// Simple test for the I2S on the ESP32dev board.
+// IMPORTANT:
+//   This is using examples is built on esp-idf 4.x. This existed prior to Arduino Core 3.0.0.
+//   To use this example, you MUST downgrade to Arduino Core < 3.0.0
+//   or it won't work on Arduino.
 
+
+#define FASTLED_ESP32_I2S
 #include <FastLED.h>
 
 // How many leds in your strip?
-#define NUM_LEDS 10
+#define NUM_LEDS 1
 
 // For led chips like WS2812, which have a data line, ground, and power, you just
 // need to define DATA_PIN.  For led chipsets that are SPI based (four wires - data, clock,
@@ -13,37 +20,27 @@
 // Define the array of leds
 CRGB leds[NUM_LEDS];
 
-// Time scaling factors for each component
-#define TIME_FACTOR_HUE 60
-#define TIME_FACTOR_SAT 100
-#define TIME_FACTOR_VAL 100
-
-void setup() {
-    Serial.begin(115200);
-    FastLED.addLeds<WS2812, DATA_PIN, GRB>(leds, NUM_LEDS);  // GRB ordering is assumed
-    FastLED.setBrightness(128);  // Set global brightness to 50%
-    delay(2000);  // If something ever goes wrong this delay will allow upload.
+void setup() { 
+    // Uncomment/edit one of the following lines for your leds arrangement.
+    // ## Clockless types ##
+    FastLED.addLeds<NEOPIXEL, DATA_PIN>(leds, NUM_LEDS);  // GRB ordering is assumed
 }
 
-void loop() {
-    uint32_t ms = millis();
-    
-    for(int i = 0; i < NUM_LEDS; i++) {
-        // Use different noise functions for each LED and each color component
-        uint8_t hue = inoise16(ms * TIME_FACTOR_HUE, i * 1000, 0) >> 8;
-        uint8_t sat = inoise16(ms * TIME_FACTOR_SAT, i * 2000, 1000) >> 8;
-        uint8_t val = inoise16(ms * TIME_FACTOR_VAL, i * 3000, 2000) >> 8;
-        
-        // Map the noise to full range for saturation and value
-        sat = map(sat, 0, 255, 30, 255);
-        val = map(val, 0, 255, 100, 255);
-        
-        leds[i] = CHSV(hue, sat, val);
-    }
+void loop() { 
+  // Turn the LED on, then pause
+  leds[0] = CRGB::Red;
+  FastLED.show();
+  delay(500);
+  // Now turn the LED off, then pause
+  leds[0] = CRGB::Black;
+  FastLED.show();
+  delay(500);
 
-    FastLED.show();
-    
-    // Small delay to control the overall speed of the animation
-    //FastLED.delay(1);
-
+  // This is a no-op but tests that we have access to gCntBuffer, part of the
+  // i2s api. You can delete this in your own sketch. It's only here for testing
+  // purposes.
+  if (false) {
+    int value = gCntBuffer;
+    value++;
+  }
 }

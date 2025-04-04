@@ -14,7 +14,7 @@
 
 #include <stdint.h>
 #include "lib8tion/lib8static.h"
-#include "qfx.h"
+#include "lib8tion/qfx.h"
 
 
 #if !defined(__AVR__)
@@ -809,11 +809,6 @@ LIB8STATIC uint8_t squarewave8( uint8_t in, uint8_t pulsewidth=128)
 }
 
 /// @} WaveformGenerators
-
-
-
-
-/// @}
 
 /// @} lib8tion (excluding the timekeeping functions from the nested group)
 

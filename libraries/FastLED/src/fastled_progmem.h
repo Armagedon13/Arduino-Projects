@@ -1,8 +1,7 @@
 #ifndef __INC_FL_PROGMEM_H
 #define __INC_FL_PROGMEM_H
 
-#include "FastLED.h"
-#include "namespace.h"
+#include "fl/namespace.h"
 
 /// @file fastled_progmem.h
 /// Wrapper definitions to allow seamless use of PROGMEM in environments that have it

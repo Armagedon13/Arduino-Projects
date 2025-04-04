@@ -1,10 +1,10 @@
 
 #ifdef __EMSCRIPTEN__
 
-#include "json.h"
+#include "fl/json.h"
 #include "platforms/wasm/js.h"
 #include "ui_manager.h"
-#include "namespace.h"
+#include "fl/namespace.h"
 
 using namespace fl;
 
@@ -19,7 +19,7 @@ jsButton::jsButton(const Str& name)
     auto toJsonFunc = jsUiInternal::ToJsonFunction(this, [](void* self, FLArduinoJson::JsonObject& json) {
         static_cast<jsButton*>(self)->toJson(json);
     });
-    mInternal = jsUiInternalRef::New(name, std::move(updateFunc), std::move(toJsonFunc));
+    mInternal = jsUiInternalPtr::New(name, std::move(updateFunc), std::move(toJsonFunc));
     jsUiManager::addComponent(mInternal);
     mUpdater.init(this);
 }

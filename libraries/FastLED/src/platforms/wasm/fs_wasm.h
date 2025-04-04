@@ -3,17 +3,16 @@
 #include <string>
 #include <stdint.h>
 
-#include "file_system.h"
-#include "namespace.h"
-#include "ref.h"
-#include "slice.h"
+#include "fl/file_system.h"
+#include "fl/namespace.h"
+#include "fl/ptr.h"
+#include "fl/slice.h"
 
+namespace fl {
 
-FASTLED_NAMESPACE_BEGIN
+FsImplPtr make_sdcard_filesystem(int cs_pin);
 
-FsImplRef make_sdcard_filesystem(int cs_pin);
-
-FASTLED_NAMESPACE_END
+}
 
 extern "C" {
 // Called from the browser side, this is intended to create a file

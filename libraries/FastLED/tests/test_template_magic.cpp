@@ -1,11 +1,11 @@
 
 // g++ --std=c++11 test.cpp
 
-#define DOCTEST_CONFIG_IMPLEMENT_WITH_MAIN
+#include "test.h"
 
-#include "doctest.h"
-#include "template_magic.h"
-#include "namespace.h"
+#include "test.h"
+#include "fl/template_magic.h"
+#include "fl/namespace.h"
 #include <type_traits>
 
 class Base {};

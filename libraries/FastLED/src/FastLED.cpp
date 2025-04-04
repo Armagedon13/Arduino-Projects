@@ -1,7 +1,7 @@
 #define FASTLED_INTERNAL
 #include "FastLED.h"
-#include "singleton.h"
-#include "engine_events.h"
+#include "fl/singleton.h"
+#include "fl/engine_events.h"
 
 /// @file FastLED.cpp
 /// Central source file for FastLED, implements the CFastLED class/object
@@ -21,6 +21,26 @@
 
 #if defined(__SAM3X8E__)
 volatile uint32_t fuckit;
+#endif
+
+// Disable to fix build breakage.
+// #ifndef FASTLED_DEFINE_WEAK_YEILD_FUNCTION
+// #if defined(__AVR_ATtiny13__)
+// // Arduino.h also defines this as a weak function on this platform.
+// #define FASTLED_DEFINE_WEAK_YEILD_FUNCTION 0
+// #else
+// #define FASTLED_DEFINE_WEAK_YEILD_FUNCTION 1
+// #endif
+// #endif
+
+/// Has to be declared outside of any namespaces.
+/// Called at program exit when run in a desktop environment. 
+/// Extra C definition that some environments may need. 
+/// @returns 0 to indicate success
+extern "C" __attribute__((weak)) int atexit(void (* /*func*/ )()) { return 0; }
+
+#ifdef FASTLED_NEEDS_YIELD
+extern "C" void yield(void) { }
 #endif
 
 FASTLED_NAMESPACE_BEGIN
@@ -78,14 +98,14 @@ CLEDController &CFastLED::addLeds(CLEDController *pLed,
 	pLed->init();
 	pLed->setLeds(data + nOffset, nLeds);
 	FastLED.setMaxRefreshRate(pLed->getMaxRefreshRate(),true);
-	EngineEvents::onStripAdded(pLed, nLedsOrOffset - nOffset);
+	fl::EngineEvents::onStripAdded(pLed, nLedsOrOffset - nOffset);
 	return *pLed;
 }
 
 static void* gControllersData[MAX_CLED_CONTROLLERS];
 
 void CFastLED::show(uint8_t scale) {
-	EngineEvents::onBeginFrame();
+	fl::EngineEvents::onBeginFrame();
 	while(m_nMinMicros && ((micros()-lastshow) < m_nMinMicros));
 	lastshow = micros();
 
@@ -99,21 +119,37 @@ void CFastLED::show(uint8_t scale) {
 	CLEDController *pCur = CLEDController::head();
 
 	while(pCur && length < MAX_CLED_CONTROLLERS) {
-		gControllersData[length++] = pCur->beginShowLeds();
+		if (pCur->getEnabled()) {
+			gControllersData[length] = pCur->beginShowLeds(pCur->size());
+		} else {
+			gControllersData[length] = nullptr;
+		}
+		length++;
 		if (m_nFPS < 100) { pCur->setDither(0); }
-		pCur->showLedsInternal(scale);
 		pCur = pCur->next();
+	}
+
+	pCur = CLEDController::head();
+	for (length = 0; length < MAX_CLED_CONTROLLERS && pCur; length++) {
+		if (pCur->getEnabled()) {
+			pCur->showLedsInternal(scale);
+		}
+		pCur = pCur->next();
+
 	}
 
 	length = 0;  // Reset length to 0 and iterate again.
 	pCur = CLEDController::head();
 	while(pCur && length < MAX_CLED_CONTROLLERS) {
-		pCur->endShowLeds(gControllersData[length++]);
+		if (pCur->getEnabled()) {
+			pCur->endShowLeds(gControllersData[length]);
+		}
+		length++;
 		pCur = pCur->next();
 	}
 	countFPS();
-	EngineEvents::onEndShowLeds();
-	EngineEvents::onEndFrame();
+	fl::EngineEvents::onEndShowLeds();
+	fl::EngineEvents::onEndFrame();
 }
 
 int CFastLED::count() {
@@ -150,16 +186,31 @@ void CFastLED::showColor(const struct CRGB & color, uint8_t scale) {
 	int length = 0;
 	CLEDController *pCur = CLEDController::head();
 	while(pCur && length < MAX_CLED_CONTROLLERS) {
-		gControllersData[length++] = pCur->beginShowLeds();
+		if (pCur->getEnabled()) {
+			gControllersData[length] = pCur->beginShowLeds(pCur->size());
+		} else {
+			gControllersData[length] = nullptr;
+		}
+		length++;
+		pCur = pCur->next();
+	}
+
+	pCur = CLEDController::head();
+	while(pCur && length < MAX_CLED_CONTROLLERS) {
 		if(m_nFPS < 100) { pCur->setDither(0); }
-		pCur->showColorInternal(color, scale);
+		if (pCur->getEnabled()) {
+			pCur->showColorInternal(color, scale);
+		}
 		pCur = pCur->next();
 	}
 
 	pCur = CLEDController::head();
 	length = 0;  // Reset length to 0 and iterate again.
 	while(pCur && length < MAX_CLED_CONTROLLERS) {
-		pCur->endShowLeds(gControllersData[length++]);
+		if (pCur->getEnabled()) {
+			pCur->endShowLeds(gControllersData[length]);
+		}
+		length++;
 		pCur = pCur->next();
 	}
 	countFPS();
@@ -304,11 +355,7 @@ uint8_t get_brightness() {
 	return FastLED.getBrightness();
 }
 
-/// Called at program exit when run in a desktop environment. 
-/// Extra C definition that some environments may need. 
-/// @returns 0 to indicate success
-extern "C" __attribute__((weak)) int atexit(void (* /*func*/ )()) { return 0; }
-extern "C"  __attribute__((weak)) void yield(void) { }
+
 
 #ifdef NEED_CXX_BITS
 namespace __cxxabiv1

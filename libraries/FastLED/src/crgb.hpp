@@ -1,3 +1,5 @@
+/// @file crgb.hpp
+/// Defines utility functions for the red, green, and blue (RGB) pixel struct
 
 #pragma once
 
@@ -5,8 +7,9 @@
 #include "chsv.h"
 #include "crgb.h"
 #include "lib8tion.h"
-#include "namespace.h"
-#include "force_inline.h"
+#include "fl/namespace.h"
+#include "fl/force_inline.h"
+#include "fl/str.h"
 
 #if FASTLED_IS_USING_NAMESPACE
 #define FUNCTION_SCALE8(a,b) FASTLED_NAMESPACE::scale8(a,b)
@@ -105,11 +108,6 @@ FASTLED_FORCE_INLINE CRGB CRGB::operator-- (int )
     return retval;
 }
 
-FASTLED_FORCE_INLINE CRGB& CRGB::nscale8 (uint8_t scaledown )
-{
-    nscale8x3( r, g, b, scaledown);
-    return *this;
-}
 
 constexpr CRGB CRGB::nscale8_constexpr(const CRGB scaledown) const
 {

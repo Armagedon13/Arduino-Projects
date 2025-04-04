@@ -49,8 +49,13 @@ sketch_flags = [
     "-DFASTLED_ENGINE_EVENTS_MAX_LISTENERS=50",
     "-DFASTLED_FORCE_NAMESPACE=1",
     "-DFASTLED_USE_PROGMEM=0",
-    "-DDISABLE_EXCEPTION_CATCHING=1",
+    #"-DDISABLE_EXCEPTION_CATCHING=1",
     "-sALLOW_MEMORY_GROWTH=0",
+    #"-fno-exceptions",
+    #"-fno-rtti",
+    #"-DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0",
+    #"-sDISABLE_EXCEPTION_CATCHING=1",
+    #"-sDISABLE_EXCEPTION_THROWING=0",
     build_mode,
     "--bind",
     "-DUSE_OFFSET_CONVERTER=0",
@@ -61,6 +66,12 @@ sketch_flags = [
     "-Wnon-c-typedef-for-linkage",
     f"-sWASM={USE_WASM}",
     "-fuse-ld=lld",
+    #-Wbad-function-cast -Wcast-function
+    "-Werror=bad-function-cast",
+    "-Werror=cast-function-type",
+    # add /js/src/ to the include path
+    "-I",
+    "src",
 ]
 
 if QUICK_BUILD:
@@ -86,6 +97,11 @@ sketch_flags += [
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','stringToUTF8','lengthBytesUTF8']",
     "-sEXPORTED_FUNCTIONS=['_malloc','_free','_extern_setup','_extern_loop','_fastled_declare_files']",
     "--no-entry",
+    #"-fno-exceptions",
+    #"-fno-rtti",
+    #"-DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0",
+    #"-sDISABLE_EXCEPTION_CATCHING=1",
+    #"-sDISABLE_EXCEPTION_THROWING=0",
 ]
 
 if OPTIMIZED:
@@ -105,15 +121,34 @@ if export_name:
 env.Append(LINKFLAGS=sketch_flags)
 
 
-fastled_compile_flags = [
-    "-Wl,--whole-archive,-fuse-ld=lld"
+fastled_compile_cc_flags = [
+    "-Werror=bad-function-cast",
+    "-Werror=cast-function-type",
+    #"-fno-exceptions",
+    #"-fno-rtti",
+    build_mode,
+    #"-DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0",
+    #"-fno-exceptions",
+    #"-sDISABLE_EXCEPTION_CATCHING=1",
+    #"-sDISABLE_EXCEPTION_THROWING=0",
 ]
+
+
+
+
+fastled_compile_link_flags = [
+    "-Wl,--whole-archive,-fuse-ld=lld",
+    "-Werror=bad-function-cast",
+    "-Werror=cast-function-type",
+]
+
 
 # Pass flags to the other Project Dependencies (libraries)
 for lb in env.GetLibBuilders():
     lb.env.Replace(CC=CC, CXX=CXX, LINK=LINK, AR="emar", RANLIB="emranlib")
     # Add whole-archive flag to ensure all objects have all symbols available
     # for final linking.
-    lb.env.Append(LINKFLAGS=fastled_compile_flags)
+    lb.env.Append(CCFLAGS=fastled_compile_cc_flags)
+    lb.env.Append(LINKFLAGS=fastled_compile_link_flags)
 
 

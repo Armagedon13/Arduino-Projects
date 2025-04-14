@@ -5,11 +5,12 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "platformio==6.1.16",
+    "platformio==6.1.17",
     "fastled-wasm",
     "python-dateutil",
     "ruff",
     "mypy",
+    "pyright",
     "types-python-dateutil",
     "clang-format",
     "isort",
@@ -24,7 +25,9 @@ dependencies = [
     "download",
     "fastled>=1.2.26",
     "playwright",
-    "advanced-aicode"
+    "advanced-aicode",
+    "download",
+    "httpx",
 ]
 
 [build-system]

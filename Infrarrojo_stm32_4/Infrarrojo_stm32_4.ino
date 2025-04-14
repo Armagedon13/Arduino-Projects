@@ -8,15 +8,13 @@
 #include <MCP4725.h>
 #include <IWatchdog.h>
 #include <EEPROM.h>
+#include "HardwareSerial.h"
 
 #define DAC_ADDR 0x60
 #define WATCHDOG_TIMEOUT 5000000
 
 Adafruit_MLX90614 mlx = Adafruit_MLX90614();
 MCP4725 dac(DAC_ADDR);
-
-// Pines Serial1 (UART externo via CP2102)
-#define SERIAL_PORT Serial1
 
 // Estructura de parámetros configurables
 struct Config {
@@ -39,19 +37,26 @@ bool bufferFull = false;
 
 void saveConfig() {
   EEPROM.put(EEPROM_ADDR, config);
-  SERIAL_PORT.println("Configuracion guardada en EEPROM.");
+  Serial1.println("Configuracion guardada en EEPROM.");
 }
 
 void loadConfig() {
   EEPROM.get(EEPROM_ADDR, config);
-  if (config.emissivity < 0.01f || config.emissivity > 1.0f) config.emissivity = 1.0f;
-  if (config.T_min < 0 || config.T_max < config.T_min) {
-    config.T_min = 37.0f;
-    config.T_max = 620.0f;
+
+  // Verificación más estricta
+  bool valid = true;
+  if (isnan(config.emissivity) || config.emissivity < 0.01f || config.emissivity > 1.0f) valid = false;
+  if (isnan(config.T_min) || config.T_min < 0) valid = false;
+  if (isnan(config.T_max) || config.T_max < config.T_min || config.T_max > 1000.0f) valid = false;
+  if (isnan(config.slope_base) || config.slope_base <= 0.0f || config.slope_base > 100.0f) valid = false;
+  if (isnan(config.offset_mV) || fabs(config.offset_mV) > 100.0f) valid = false;
+
+  if (!valid) {
+    Serial1.println("EEPROM invalida, cargando valores por defecto.");
+    config = {0.18, 37.0, 620.0, 32.67, 0.0};
   }
-  if (config.slope_base < 1.0f || config.slope_base > 100.0f) config.slope_base = 32.67f;
-  if (abs(config.offset_mV) > 100.0f) config.offset_mV = 0.0f;
 }
+
 
 float calculateOutputMilliVolts(float temp) {
   if (temp < config.T_min) temp = config.T_min;
@@ -60,18 +65,24 @@ float calculateOutputMilliVolts(float temp) {
 }
 
 void printStatus() {
-  SERIAL_PORT.println("--- CONFIGURACION ACTUAL ---");
-  SERIAL_PORT.print("EMI: "); SERIAL_PORT.println(config.emissivity);
-  SERIAL_PORT.print("TMIN: "); SERIAL_PORT.println(config.T_min);
-  SERIAL_PORT.print("TMAX: "); SERIAL_PORT.println(config.T_max);
-  SERIAL_PORT.print("SLOPE: "); SERIAL_PORT.println(config.slope_base);
-  SERIAL_PORT.print("OFFSET: "); SERIAL_PORT.println(config.offset_mV);
-  SERIAL_PORT.println("----------------------------");
+  float tempAvg = 0;
+  int count = bufferFull ? NUM_SAMPLES : sampleIndex;
+  for (int i = 0; i < count; i++) tempAvg += tempBuffer[i];
+  if (count > 0) tempAvg /= count;
+
+  Serial1.println("--- CONFIGURACION ACTUAL ---");
+  Serial1.print("EMI: "); Serial1.println(config.emissivity, 2);
+  Serial1.print("TMIN: "); Serial1.println(config.T_min, 2);
+  Serial1.print("TMAX: "); Serial1.println(config.T_max, 2);
+  Serial1.print("SLOPE: "); Serial1.println(config.slope_base, 2);
+  Serial1.print("OFFSET: "); Serial1.println(config.offset_mV, 3);
+  Serial1.print("TEMP_AVG: "); Serial1.print(tempAvg, 2); Serial1.println(" °C");
+  Serial1.println("----------------------------");
 }
 
 void parseSerialCommand() {
-  if (!SERIAL_PORT.available()) return;
-  String cmd = SERIAL_PORT.readStringUntil('\n');
+  if (!Serial1.available()) return;
+  String cmd = Serial1.readStringUntil('\n');
   cmd.trim();
 
   if (cmd.startsWith("EMI ")) config.emissivity = cmd.substring(4).toFloat();
@@ -82,12 +93,12 @@ void parseSerialCommand() {
   else if (cmd.equals("STATUS")) printStatus();
   else if (cmd.equals("SAVE")) saveConfig();
   else if (cmd.equals("RESET")) NVIC_SystemReset();
-  else SERIAL_PORT.println("Comando no reconocido");
+  else Serial1.println("Comando no reconocido");
 }
 
 void setup() {
   Serial.begin(115200);      // Debug interno por USB (opcional)
-  SERIAL_PORT.begin(9600);   // UART externo (CP2102)
+  Serial1.begin(9600);   // UART externo (CP2102)
   Wire.begin();
 
   loadConfig();

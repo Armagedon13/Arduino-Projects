@@ -401,6 +401,11 @@ class Str : public StrN<FASTLED_STR_INLINED_SIZE> {
         return strcmp(c_str(), other.c_str()) != 0;
     }
 
+    Str& operator+=(const Str &other) {
+        append(other.c_str(), other.size());
+        return *this;
+    }
+
     Str& append(const char *str) { write(str, strlen(str)); return *this; }
     Str& append(const char *str, size_t len) { write(str, len); return *this; }
     //Str& append(char c) { write(&c, 1); return *this; }
@@ -413,6 +418,20 @@ class Str : public StrN<FASTLED_STR_INLINED_SIZE> {
     Str& append(const int16_t& val) { write(uint32_t(val)); return *this; }
     Str& append(const uint32_t& val) { write(val); return *this; }
     Str& append(const int32_t& c) { write(c); return *this; }
+
+    Str& append(const float& val) {
+        int32_t i = static_cast<int32_t>(val * 100);
+        // append the integer part
+        append(i / 100);
+        append(".");
+        // append the decimal part
+        append(i % 100);
+        return *this;
+    }
+
+    Str& append(const double& val) {
+        return append(float(val));
+    }
 
     Str& append(const StrN &str) { write(str.c_str(), str.size()); return *this; }
 

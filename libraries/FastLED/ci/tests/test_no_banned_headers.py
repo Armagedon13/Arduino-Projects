@@ -64,7 +64,7 @@ EXCLUDED_FILES = [
 ]
 
 
-class TestBinToElf(unittest.TestCase):
+class TestNoBannedHeaders(unittest.TestCase):
 
     def check_file(self, file_path: str) -> list[str]:
         failings: list[str] = []

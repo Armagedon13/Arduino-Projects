@@ -4,23 +4,23 @@ Work in progress to generate doxygen via a script instead of a GitHub action.
 
 import os
 import platform
-import re
 import shutil
 import subprocess
 import warnings
 from pathlib import Path
 from typing import Optional, Tuple
 
-from docs_scrape_graphviz import get_latest_release_for_platform
 from download import download  # type: ignore
 
 # Configs
-DOXYGEN_VERSION = "1.11.0"
-DOXYGEN_AWESOME_VERSION = "2.3.3"
+DOXYGEN_VERSION = (
+    "1.13.2"  # DOXYGEN_AWESOME styler is has certain restrictions with doxygen version
+)
+DOXYGEN_AWESOME_VERSION = "2.3.4"  # deprecating
 DOXYFILE_PATH = Path("docs/Doxyfile")
 HTML_OUTPUT_DIR = Path("docs/html")
-DOXYGEN_CSS_REPO = "https://github.com/jothepro/doxygen-awesome-css"
-GRAPHVIZ_VERSION = "9.0.0"  # Default version if not found in releases
+DOXYGEN_CSS_REPO = "https://github.com/jothepro/doxygen-awesome-css"  # deprecating
+
 
 HERE = Path(__file__).parent.resolve()
 PROJECT_ROOT = HERE.parent
@@ -31,14 +31,22 @@ DOCS_OUTPUT_PATH = DOCS_ROOT / "html"
 
 
 def run(
-    cmd: str, cwd: Optional[str] = None, shell: bool = True, check: bool = True
+    cmd: str,
+    cwd: Optional[str] = None,
+    shell: bool = True,
+    check: bool = True,
+    capture: bool = True,
 ) -> str:
     print(f"Running: {cmd}")
     result = subprocess.run(
-        cmd, shell=shell, cwd=cwd, check=False, capture_output=True, text=False
+        cmd, shell=shell, cwd=cwd, check=False, capture_output=capture, text=False
     )
-    stdout = result.stdout.decode("utf-8") if result.stdout else ""
-    stderr = result.stderr.decode("utf-8") if result.stderr else ""
+    if capture:
+        stdout = result.stdout.decode("utf-8") if result.stdout else ""
+        stderr = result.stderr.decode("utf-8") if result.stderr else ""
+    else:
+        stdout = ""
+        stderr = ""
     if result.returncode != 0:
         msg = f"Command failed with exit code {result.returncode}:\nstdout:\n{stdout}\n\nstderr:\n{stderr}"
         warnings.warn(msg)
@@ -77,7 +85,7 @@ def install_doxygen_windows() -> Path:
     doxygen_url = (
         f"https://www.doxygen.nl/files/doxygen-{DOXYGEN_VERSION}.windows.x64.bin.zip"
     )
-    zip_path = DOCS_TOOL_PATH / "doxygen.zip"
+    zip_path = DOCS_TOOL_PATH / f"doxygen-{DOXYGEN_VERSION}.zip"
     extract_dir = DOCS_TOOL_PATH / f"doxygen-{DOXYGEN_VERSION}"
 
     # Create tool path if it doesn't exist
@@ -125,40 +133,33 @@ def install_theme() -> Path:
     return theme_path
 
 
-def update_doxyfile(project_number: str) -> None:
-    print("Updating Doxyfile with project number...")
-    doxyfile = DOXYFILE_PATH.read_text()
-    updated = re.sub(
-        r"(?m)^PROJECT_NUMBER\s*=.*", f"PROJECT_NUMBER = {project_number}", doxyfile
-    )
-    DOXYFILE_PATH.write_text(updated)
-
-
 def generate_docs(doxygen_bin: Path) -> None:
     print("Generating documentation...")
-    run(f'"{doxygen_bin}" {DOXYFILE_PATH.name}', cwd=str(DOCS_ROOT))
+    cmd_str = f'"{doxygen_bin}" {DOXYFILE_PATH.name}'
+    run(cmd_str, cwd=str(DOCS_ROOT), capture=False)
 
 
-def install_graphviz() -> None:
-    url: str = get_latest_release_for_platform()
-    print(url)
+# def install_graphviz() -> None:
+#     url: str = get_latest_release_for_platform()
+#     print(url)
 
 
 def main() -> None:
 
     is_windows = platform.system() == "Windows"
     # is_macos = platform.system() == "Darwin"
-    project_number, commit_msg = get_git_info()
+    _, commit_msg = get_git_info()
 
     if is_windows:
         doxygen_bin = install_doxygen_windows()
+        # add to path C:\Program Files\Graphviz\bin\
+        os.environ["PATH"] += os.pathsep + r"C:\Program Files\Graphviz\bin"
     else:
         doxygen_bin = install_doxygen_unix()
 
-    install_theme()
-    update_doxyfile(project_number)
+    # install_theme()
 
-    install_graphviz()  # Work in progress
+    # install_graphviz()  # Work in progress
 
     # Verify Graphviz installation
     try:
@@ -169,7 +170,12 @@ def main() -> None:
             "Graphviz (dot) not found in PATH. Diagrams may not be generated."
         )
 
-    generate_docs(doxygen_bin)
+    # Check it graphviz is installed
+    # if linux
+    if not is_windows:
+        run("dot -Tsvg -Kneato -Grankdir=LR", check=True)
+
+    generate_docs(doxygen_bin=doxygen_bin)
 
     print(f"\n✅ Docs generated in: {HTML_OUTPUT_DIR}")
     print(f"📄 Commit message: {commit_msg}")

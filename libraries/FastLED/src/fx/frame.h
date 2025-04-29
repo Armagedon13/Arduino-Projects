@@ -5,12 +5,19 @@
 #include "fl/namespace.h"
 #include "crgb.h"
 #include "fl/ptr.h"
+#include "fl/xymap.h"
 
 #include "fl/allocator.h"
 
 namespace fl {
 
 FASTLED_SMART_PTR(Frame);
+
+
+enum DrawMode {
+    DRAW_MODE_OVERWRITE,
+    DRAW_MODE_BLEND_BY_BLACK
+};
 
 // Frames are used to hold led data. This includes an optional alpha channel. This object
 // is used by the fx and video engines. Most of the memory used for Fx and Video will be located
@@ -28,7 +35,9 @@ public:
     void copy(const Frame& other);
     void interpolate(const Frame& frame1, const Frame& frame2, uint8_t amountOfFrame2);
     static void interpolate(const Frame& frame1, const Frame& frame2, uint8_t amountofFrame2, CRGB* pixels);
-    void draw(CRGB* leds) const;
+    void draw(CRGB* leds, DrawMode draw_mode = DRAW_MODE_OVERWRITE) const;
+    void drawXY(CRGB* leds, const XYMap& xyMap, DrawMode draw_mode = DRAW_MODE_OVERWRITE) const;
+    void clear();
 private:
     const size_t mPixelsCount;
     fl::scoped_array<CRGB> mRgb;

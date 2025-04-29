@@ -12,8 +12,11 @@ FastLED Library
 
 Want to control a strip of leds? Or control 10's of thousands? FastLED has your back.
 
-FastLED is a robust and massively parallel-led driver for Arduino, Esp32, RaspberryPi,  Atmega, Teensy, Uno, Apollo3 Arm and more. Also runs on dirt cheap sub $1 devices, due to it's incredibly small compile size. High end devices can drive upto ~30k LEDS (Teensy) and ~20k on ESP32. Supports nearly every single LED chipset in existence. Background rendering (ESP32/Teensy/RaspberriPi) means you can respond to user input while the leds render. FastLED is the fourth [most popular library on Arduino](https://docs.arduino.cc/libraries/).
+FastLED is a robust and massively parallel-led driver for Arduino, Esp32, RaspberryPi,  Atmega, Teensy, Uno, Apollo3 Arm and more. Also runs on dirt cheap sub $1 devices, due to it's incredibly small compile size. High end devices can drive upto ~30k LEDS (Teensy) and ~20k on ESP32. Supports nearly every single LED chipset in existence. Background rendering (ESP32/Teensy/RaspberriPi) means you can respond to user input while the leds render. FastLED is the third [most popular library on Arduino](https://docs.arduino.cc/libraries/).
 
+## Documentation
+
+Can be found [here](https://fastled.io/docs/files.html)
 
 ## Star History
 
@@ -62,10 +65,25 @@ void loop() {
 }
 ```
 
-For more examples see this [link](examples). Web compiled [examples](https://zackees.github.io/fastled-wasm/).
+For more examples, see this [link](examples). Web compiled [examples](https://zackees.github.io/fastled-wasm/).
 
 
 # New Feature Announcements
+
+
+## New in 3.9.16: WaveFx / Multi Layer Compositing / Time-based animation control
+
+https://github.com/user-attachments/assets/156f77c6-9f95-4787-b296-70b882f399dd
+
+
+  * [FxWave2d](https://github.com/FastLED/FastLED/blob/master/examples/FxWave2d/FxWave2d.ino)
+    * [Wave Simulation Library](https://github.com/FastLED/FastLED/blob/master/src/fl/wave_simulation.h)
+  * [FireCylinder](https://github.com/FastLED/FastLED/blob/master/examples/FireCylinder/FireCylinder.ino)
+    * Wraps around so that (0,y) ~= (width-1,y)
+  * [TimeAlpha](https://github.com/FastLED/FastLED/blob/master/src/fl/time_alpha.h)
+    * Precision control of animations with time-based alpha transition.
+
+
 
 ## New in 3.9.13: HD107 "Turbo" 40Mhz LED Support
 
@@ -93,15 +111,9 @@ For more examples see this [link](examples). Web compiled [examples](https://zac
 ![image](https://github.com/user-attachments/assets/be98fbe6-0ec7-492d-8ed1-b7eb6c627e86)
 Update: max overclock has been reported at +70%: https://www.reddit.com/r/FastLED/comments/1gkcb6m/fastled_FASTLED_OVERCLOCK_17/
 
-## Star History
+## New in 3.7.7 - RGBW LED Strip Support
 
-<a href="https://star-history.com/#fastled/fastled&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=fastled/fastled&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=fastled/fastled&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=fastled/fastled&type=Date" />
- </picture>
-</a>
+![image (1)](https://github.com/user-attachments/assets/d4892626-3dc6-4d6d-a740-49ddad495fa5)
 
 
 ## Supported Platforms
@@ -410,7 +422,7 @@ void setup() {
 
 Check out thr rust port of this algorithm:
 
-https://github.com/smart-leds-rs/apa102-spi-rs/pull/15
+https://docs.rs/apa102-spi/latest/apa102_spi/
 
 # Getting Started
 

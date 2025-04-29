@@ -12,7 +12,7 @@
 #include "fl/xymap.h"
 #include "fl/unused.h"
 
-#if __has_include(<assert.h>)
+#if __has_include(<assert.h>) && !defined(__AVR__)
 #include <assert.h>
 #else
 #define assert(x) ((void)0)
@@ -23,7 +23,7 @@ using namespace fl;
 // Legacy XY function. This is a weak symbol that can be overridden by the user.
 uint16_t XY(uint8_t x, uint8_t y) __attribute__((weak));
 
-uint16_t XY(uint8_t x, uint8_t y) {
+__attribute__((weak)) uint16_t XY(uint8_t x, uint8_t y) {
     FASTLED_UNUSED(x);
     FASTLED_UNUSED(y);
     assert(false);  // The user didn't provide an XY function, so we'll assert here.
@@ -335,7 +335,7 @@ CRGB& nblend( CRGB& existing, const CRGB& overlay, fract8 amountOfOverlay )
 
 
 
-void nblend( CRGB* existing, CRGB* overlay, uint16_t count, fract8 amountOfOverlay)
+void nblend( CRGB* existing, const CRGB* overlay, uint16_t count, fract8 amountOfOverlay)
 {
     for( uint16_t i = count; i; --i) {
         nblend( *existing, *overlay, amountOfOverlay);
@@ -411,7 +411,7 @@ CHSV& nblend( CHSV& existing, const CHSV& overlay, fract8 amountOfOverlay, TGrad
 
 
 
-void nblend( CHSV* existing, CHSV* overlay, uint16_t count, fract8 amountOfOverlay, TGradientDirectionCode directionCode )
+void nblend( CHSV* existing, const CHSV* overlay, uint16_t count, fract8 amountOfOverlay, TGradientDirectionCode directionCode )
 {
     if(existing == overlay) return;
     for( uint16_t i = count; i; --i) {

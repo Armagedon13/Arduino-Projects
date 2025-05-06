@@ -14,9 +14,8 @@
 
 Adafruit_MLX90614 mlx = Adafruit_MLX90614();
 MCP4725 dac(DAC_ADDR);
-//HardwareSerial Serial1(PA10, PA9);
 
-// Configuración y parámetros
+// --- Configuración y parámetros ---
 struct Config {
   float emissivity = 0.30;
   float T_min = 37.0;
@@ -30,6 +29,7 @@ struct Config {
 const float VREF = 3.3;
 const int dac_max = 4095;
 const float resistor_divider = 101.0;
+
 #define EEPROM_ADDR 0
 #define NUM_SAMPLES 10
 float tempBuffer[NUM_SAMPLES];
@@ -38,7 +38,7 @@ bool bufferFull = false;
 float lastAvg = 0;
 bool usingHighProfile = false;
 
-// --- Funciones de configuración EEPROM ---
+// --- EEPROM ---
 void saveConfig() {
   EEPROM.put(EEPROM_ADDR, config);
   Serial1.println("Configuracion guardada en EEPROM.");
@@ -55,14 +55,20 @@ void loadConfig() {
   if (abs(config.offset_mV) > 100.0f) config.offset_mV = 0.0f;
 }
 
-// --- Cálculo mV ---
+// --- mV cálculo ---
 float calculateOutputMilliVolts(float temp) {
   if (temp < config.T_min) temp = config.T_min;
   float slope = config.slope_base / (config.T_max - config.T_min);
   return slope * (temp - config.T_min) + config.offset_mV;
 }
 
-// --- Autoajuste por salto de temperatura ---
+void setAnalogOutput(float mV) {
+  float Vout = mV / 1000.0 / resistor_divider;
+  int value = constrain((int)(Vout / VREF * dac_max), 0, dac_max);
+  dac.analogWrite(value);
+}
+
+// --- Autoajuste por salto térmico ---
 void detectTempJump(float avgTemp) {
   if (!config.autoDetect) return;
 
@@ -81,7 +87,7 @@ void detectTempJump(float avgTemp) {
   lastAvg = avgTemp;
 }
 
-// --- Auto-Tune de emisividad ---
+// --- AutoTune ---
 void autoTuneEmissivity(float targetTemp) {
   if (!config.autoTuneEnabled) {
     Serial1.println("AUTO TUNE deshabilitado.");
@@ -177,10 +183,8 @@ void loop() {
 
   detectTempJump(avg);
 
-  float output_mV = calculateOutputMilliVolts(avg);
-  float V_DAC = (output_mV * resistor_divider) / 1000.0;
-  int dac_value = constrain(round((V_DAC / VREF) * dac_max), 0, dac_max);
-  dac.setValue(dac_value);
+  float mV = calculateOutputMilliVolts(avg);
+  setAnalogOutput(mV);
 
-  delay(500);
+  delay(200); // Control de tasa de muestreo
 }

@@ -32,7 +32,7 @@
 #ifndef _IR_JVC_HPP
 #define _IR_JVC_HPP
 
-#if defined(DEBUG) && !defined(LOCAL_DEBUG)
+#if defined(DEBUG)
 #define LOCAL_DEBUG
 #else
 //#define LOCAL_DEBUG // This enables debug output only for this file
@@ -62,7 +62,8 @@
 // IRP: {38k,525}<1,-1|1,-3>(16,-8,(D:8,F:8,1,-45)+)
 // LSB first, 1 start bit + 8 bit address + 8 bit command + 1 stop bit.
 // The JVC protocol repeats by skipping the header mark and space -> this leads to a poor repeat detection for JVC protocol.
-// Some JVC devices require to send 3 repeats. https://github.com/Arduino-IRremote/Arduino-IRremote/issues/21
+// Some JVC devices require to send 3 repeats.
+
 #define JVC_ADDRESS_BITS      8 // 8 bit address
 #define JVC_COMMAND_BITS      8 // Command
 
@@ -79,8 +80,8 @@
 #define JVC_REPEAT_DISTANCE   (uint16_t)(45 * JVC_UNIT)  // 23625 - Commands are repeated with a distance of 23 ms for as long as the key on the remote control is held down.
 #define JVC_REPEAT_PERIOD     65000 // assume around 40 ms for a JVC frame. JVC IR Remotes: RM-SA911U, RM-SX463U have 45 ms period
 
-struct PulseDistanceWidthProtocolConstants JVCProtocolConstants = { JVC, JVC_KHZ, JVC_HEADER_MARK, JVC_HEADER_SPACE, JVC_BIT_MARK,
-JVC_ONE_SPACE, JVC_BIT_MARK, JVC_ZERO_SPACE, PROTOCOL_IS_LSB_FIRST, (JVC_REPEAT_PERIOD / MICROS_IN_ONE_MILLI), NULL };
+struct PulseDistanceWidthProtocolConstants const JVCProtocolConstants PROGMEM = {JVC, JVC_KHZ, JVC_HEADER_MARK, JVC_HEADER_SPACE, JVC_BIT_MARK,
+    JVC_ONE_SPACE, JVC_BIT_MARK, JVC_ZERO_SPACE, PROTOCOL_IS_LSB_FIRST, (JVC_REPEAT_PERIOD / MICROS_IN_ONE_MILLI), nullptr};
 
 /************************************
  * Start of send and decode functions
@@ -105,7 +106,7 @@ void IRsend::sendJVC(uint8_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRe
     while (tNumberOfCommands > 0) {
 
         // Address + command
-        sendPulseDistanceWidthData(&JVCProtocolConstants, aAddress | (aCommand << JVC_ADDRESS_BITS), JVC_BITS);
+        sendPulseDistanceWidthData_P(&JVCProtocolConstants, aAddress | (aCommand << JVC_ADDRESS_BITS), JVC_BITS);
 
         tNumberOfCommands--;
         // skip last delay!
@@ -148,11 +149,11 @@ bool IRrecv::decodeJVC() {
         }
     } else {
 
-        if (!checkHeader(&JVCProtocolConstants)) {
+        if (!checkHeader_P(&JVCProtocolConstants)) {
             return false;
         }
 
-        if (!decodePulseDistanceWidthData(&JVCProtocolConstants, JVC_BITS)) {
+        if (!decodePulseDistanceWidthData_P(&JVCProtocolConstants, JVC_BITS)) {
 #if defined(LOCAL_DEBUG)
             Serial.print(F("JVC: "));
             Serial.println(F("Decode failed"));

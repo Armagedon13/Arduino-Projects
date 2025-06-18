@@ -147,7 +147,20 @@
 #endif
 
 #define LCD_DRIVER_PSRAM_DATA_ALIGNMENT 64
-#define CLOCKLESS_PIXEL_CLOCK_HZ (24 * 100 * 1000)
+
+// Note: I2S REQUIRES that the FASTLED_OVERCLOCK factor is a a build-level-define and
+// not an include level define. This is easy if you are already using PlatformIO or CMake.
+// If you are using ArduinoIDE you'll have to download FastLED source code and hack the src
+// to make this work.
+#ifdef FASTLED_OVERCLOCK
+#define FASTLED_ESP32S3_I2S_CLOCK_HZ_SCALE (FASTLED_OVERCLOCK)
+#else
+#define FASTLED_ESP32S3_I2S_CLOCK_HZ_SCALE (1)
+#endif
+
+#ifndef FASTLED_ESP32S3_I2S_CLOCK_HZ
+#define FASTLED_ESP32S3_I2S_CLOCK_HZ uint32_t((24 * 100 * 1000)*FASTLED_ESP32S3_I2S_CLOCK_HZ_SCALE)
+#endif
 
 namespace fl {
 
@@ -288,11 +301,11 @@ class I2SClocklessLedDriveresp32S3 {
         for (int i = 0; i < 256; i++) {
             tmp = powf((float)i / 255, 1 / _gammag);
             __green_map[i] = (uint8_t)(tmp * brightness);
-            tmp = powf((float)i / 255, 1 / _gammag);
+            tmp = powf((float)i / 255, 1 / _gammab);
             __blue_map[i] = (uint8_t)(tmp * brightness);
-            tmp = powf((float)i / 255, 1 / _gammag);
+            tmp = powf((float)i / 255, 1 / _gammar);
             __red_map[i] = (uint8_t)(tmp * brightness);
-            tmp = powf((float)i / 255, 1 / _gammag);
+            tmp = powf((float)i / 255, 1 / _gammaw);
             __white_map[i] = (uint8_t)(tmp * brightness);
         }
     }
@@ -316,7 +329,7 @@ class I2SClocklessLedDriveresp32S3 {
                   int NUM_LED_PER_STRIP) {
 
         // esp_lcd_panel_io_handle_t init_lcd_driver(unsigned int
-        // CLOCKLESS_PIXEL_CLOCK_HZ, size_t _nb_components) {
+        // FASTLED_ESP32S3_I2S_CLOCK_HZ, size_t _nb_components) {
 
         esp_lcd_i80_bus_handle_t i80_bus = NULL;
 
@@ -354,7 +367,7 @@ class I2SClocklessLedDriveresp32S3 {
         esp_lcd_panel_io_i80_config_t io_config;
 
         io_config.cs_gpio_num = -1;
-        io_config.pclk_hz = CLOCKLESS_PIXEL_CLOCK_HZ;
+        io_config.pclk_hz = FASTLED_ESP32S3_I2S_CLOCK_HZ;
         io_config.trans_queue_depth = 1;
         io_config.dc_levels = {
             .dc_idle_level = 0,
@@ -385,7 +398,7 @@ class I2SClocklessLedDriveresp32S3 {
             I2SClocklessLedDriverS3_sem = xSemaphoreCreateBinary();
         }
         // esp_lcd_panel_io_handle_t init_lcd_driver(unsigned int
-        // CLOCKLESS_PIXEL_CLOCK_HZ, size_t _nb_components) {
+        // FASTLED_ESP32S3_I2S_CLOCK_HZ, size_t _nb_components) {
         led_output = (uint16_t *)heap_caps_aligned_alloc(
             LCD_DRIVER_PSRAM_DATA_ALIGNMENT,
             8 * _nb_components * NUM_LED_PER_STRIP * 3 * 2 + __OFFSET +

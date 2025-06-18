@@ -48,7 +48,7 @@ void timerConfigForReceive();           // Initialization of 50 us timer, interr
 void timerEnableReceiveInterrupt();     // Enable interrupts of an initialized timer
 void timerDisableReceiveInterrupt();    // Disable interrupts of an initialized timer
 void timerResetInterruptPending();      // ISR helper function for some architectures, which require a manual reset
-                                        // of the pending interrupt (TIMER_REQUIRES_RESET_INTR_PENDING is defined). Otherwise empty.
+// of the pending interrupt (TIMER_REQUIRES_RESET_INTR_PENDING is defined). Otherwise empty.
 
 void timerConfigForSend(uint16_t aFrequencyKHz); // Initialization of timer hardware generated PWM, if defined(SEND_PWM_BY_TIMER)
 void enableSendPWMByTimer();            // Switch on PWM generation
@@ -196,7 +196,7 @@ void disableSendPWMByTimer() {
 // ATtiny84
 #elif defined(__AVR_ATtiny84__) || defined(__AVR_ATtiny88__)
 #  if !defined(IR_USE_AVR_TIMER1)
-#define IR_USE_AVR_TIMER1     // send pin = pin 6
+#define IR_USE_AVR_TIMER1     // send pin = pin 6, no tone() available when using ATTinyCore
 #  endif
 
 #elif  defined(__AVR_ATtiny87__) || defined(__AVR_ATtiny167__)
@@ -507,7 +507,12 @@ void timerConfigForReceive() {
 #define IR_SEND_PIN  14             // MightyCore, MegaCore
 
 #    else
-#define IR_SEND_PIN  3              // Arduino Duemilanove, Diecimila, LilyPad, etc
+/*
+ * Using pin 11 / PB3 / OC2A for this purpose is NOT possible, since we need a PWM with a selectable frequency.
+ * This is only possible by using Phase Correct with Top as OCR2A.
+ * Thus the OCR2A register cannot be used for comparing for channel A and TOP with OCR2B is not supported by Hardware :-(.
+ */
+#define IR_SEND_PIN  3              // Arduino Uno Pin PD3, Duemilanove, Diecimila, LilyPad, etc
 #    endif // defined(CORE_OC2B_PIN)
 
 void enableSendPWMByTimer() {
@@ -1437,17 +1442,17 @@ void timerConfigForReceive() {
  **********************************************************/
 #elif defined(ESP32)
 #  if !defined(ESP_ARDUINO_VERSION)
-#define ESP_ARDUINO_VERSION 0
+#define ESP_ARDUINO_VERSION 0x010101 // Version 1.1.1
 #  endif
 #  if !defined(ESP_ARDUINO_VERSION_VAL)
-#define ESP_ARDUINO_VERSION_VAL(major, minor, patch) 202
+#define ESP_ARDUINO_VERSION_VAL(major, minor, patch) ((major << 16) | (minor << 8) | (patch))
 #  endif
 
 // Variables specific to the ESP32.
 // the ledc functions behave like hardware timers for us :-), so we do not require our own soft PWM generation code.
-hw_timer_t *s50usTimer = NULL; // set by timerConfigForReceive()
+hw_timer_t *s50usTimer = nullptr; // set by timerConfigForReceive()
 
-#  if !defined(SEND_LEDC_CHANNEL)
+#  if ESP_ARDUINO_VERSION < ESP_ARDUINO_VERSION_VAL(3, 0, 0) && !defined(SEND_LEDC_CHANNEL)
 #define SEND_LEDC_CHANNEL 0 // The channel used for PWM 0 to 7 are high speed PWM channels
 #  endif
 
@@ -1464,7 +1469,7 @@ void timerEnableReceiveInterrupt() {
  * Special support for ESP core < 202
  */
 void timerDisableReceiveInterrupt() {
-    if (s50usTimer != NULL) {
+    if (s50usTimer != nullptr) {
         timerDetachInterrupt(s50usTimer);
         timerEnd(s50usTimer);
     }
@@ -1472,7 +1477,7 @@ void timerDisableReceiveInterrupt() {
 #  else
 
 void timerDisableReceiveInterrupt() {
-    if (s50usTimer != NULL) {
+    if (s50usTimer != nullptr) {
 #    if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
         timerStop(s50usTimer);
 #    else
@@ -1492,7 +1497,7 @@ void timerConfigForReceive() {
     // ESP32 has a proper API to setup timers, no weird chip macros needed
     // simply call the readable API versions :)
     // 3 timers, choose #1, 80 divider for microsecond precision @80MHz clock, count_up = true
-    if(s50usTimer == NULL) {
+    if(s50usTimer == nullptr) {
 #    if ESP_ARDUINO_VERSION >= ESP_ARDUINO_VERSION_VAL(3, 0, 0)
         s50usTimer = timerBegin(1000000);   // Only 1 parameter is required. 1000000 corresponds to 1 MHz / 1 uSec. After successful setup the timer will automatically start.
         timerStop(s50usTimer); // Stop it here, to avoid "error E (3447) gptimer: gptimer_start(348): timer is not enabled yet" at timerEnableReceiveInterrupt()
@@ -1581,8 +1586,13 @@ void timerConfigForSend(uint16_t aFrequencyKHz) {
 
 #  if !defined(IR_SAMD_TIMER)
 #    if defined(__SAMD51__)
+#      if defined(TC5)
 #define IR_SAMD_TIMER       TC5
 #define IR_SAMD_TIMER_IRQ   TC5_IRQn
+#      else
+#define IR_SAMD_TIMER       TC3
+#define IR_SAMD_TIMER_IRQ   TC3_IRQn
+#      endif
 #    else
 // SAMD21
 #define IR_SAMD_TIMER       TC3
@@ -1617,7 +1627,11 @@ void timerConfigForReceive() {
 
 #  if defined(__SAMD51__)
     // Enable the TC5 clock, use generic clock generator 0 (F_CPU) for TC5
+#    if defined(TC5_GCLK_ID)
     GCLK->PCHCTRL[TC5_GCLK_ID].reg = GCLK_PCHCTRL_GEN_GCLK0_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
+#    else
+    GCLK->PCHCTRL[TC3_GCLK_ID].reg = GCLK_PCHCTRL_GEN_GCLK0_Val | (1 << GCLK_PCHCTRL_CHEN_Pos);
+#    endif
 
     // The TC should be disabled before the TC is reset in order to avoid undefined behavior.
     TC->CTRLA.reg &= ~TC_CTRLA_ENABLE; // Disable the Timer
@@ -1674,18 +1688,12 @@ void timerConfigForReceive() {
 }
 
 #  if !defined(DISABLE_CODE_FOR_RECEIVER)
-#    if defined(__SAMD51__)
-void TC5_Handler(void) {
-    TcCount16 *TC = (TcCount16*) IR_SAMD_TIMER;
-    // Check for right interrupt bit
-    if (TC->INTFLAG.bit.MC0 == 1) {
-        // reset bit for next turn
-        TC->INTFLAG.bit.MC0 = 1;
-        IRReceiveTimerInterruptHandler();
-    }
-}
+#    if defined(__SAMD51__) && defined(TC5)
+void TC5_Handler(void)
 #    else
-void TC3_Handler(void) {
+void TC3_Handler(void)
+#    endif // defined(__SAMD51__)
+{
     TcCount16 *TC = (TcCount16*) IR_SAMD_TIMER;
     // Check for right interrupt bit
     if (TC->INTFLAG.bit.MC0 == 1) {
@@ -1694,7 +1702,6 @@ void TC3_Handler(void) {
         IRReceiveTimerInterruptHandler();
     }
 }
-#    endif // defined(__SAMD51__)
 #  endif // !defined(DISABLE_CODE_FOR_RECEIVER)
 
 /***************************************
@@ -1773,7 +1780,7 @@ bool IRTimerInterruptHandlerHelper(repeating_timer_t*) {
 }
 
 void timerEnableReceiveInterrupt() {
-    add_repeating_timer_us(-(MICROS_PER_TICK), IRTimerInterruptHandlerHelper, NULL, &s50usTimer);
+    add_repeating_timer_us(-(MICROS_PER_TICK), IRTimerInterruptHandlerHelper, nullptr, &s50usTimer);
 }
 void timerDisableReceiveInterrupt() {
     cancel_repeating_timer(&s50usTimer);

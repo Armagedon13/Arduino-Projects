@@ -4,6 +4,15 @@
 
 #include <FastLED.h>
 #include "fx/1d/demoreel100.h"
+#include "fl/screenmap.h"
+#include "defs.h"  // for NUM_LEDS
+
+
+#if !HAS_ENOUGH_MEMORY
+void setup() {}
+void loop() {}
+#else
+
 
 using namespace fl;
 
@@ -12,6 +21,7 @@ using namespace fl;
 #define LED_TYPE    WS2811
 #define COLOR_ORDER GRB
 #define NUM_LEDS    64
+
 CRGB leds[NUM_LEDS];
 
 #define BRIGHTNESS          96
@@ -27,11 +37,12 @@ Rgbw rgbwMode = RgbwInvalid();  // No RGBW mode, just use RGB.
 DemoReel100Ptr demoReel = DemoReel100Ptr::New(NUM_LEDS);
 
 void setup() {
-  delay(3000); // 3 second delay for recovery
+  ScreenMap screenMap = ScreenMap::DefaultStrip(NUM_LEDS);
   
   // tell FastLED about the LED strip configuration
-  FastLED.addLeds<LED_TYPE,DATA_PIN,COLOR_ORDER>(leds, NUM_LEDS)
+  FastLED.addLeds<LED_TYPE,DATA_PIN,COLOR_ORDER>(leds, NUM_LEDS, 2.0f)
     .setCorrection(TypicalLEDStrip)
+    .setScreenMap(screenMap)
     .setRgbw(rgbwMode);
 
   // set master brightness control
@@ -50,3 +61,4 @@ void loop()
 }
 
 
+#endif // HAS_ENOUGH_MEMORY

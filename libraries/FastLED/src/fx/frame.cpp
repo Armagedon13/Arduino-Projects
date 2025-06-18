@@ -15,25 +15,22 @@ using namespace fl;
 namespace fl {
 
 Frame::Frame(int pixels_count) : mPixelsCount(pixels_count), mRgb() {
-    mRgb.reset(reinterpret_cast<CRGB *>(
-        LargeBlockAllocate(pixels_count * sizeof(CRGB))));
-    memset(mRgb.get(), 0, pixels_count * sizeof(CRGB));
+    mRgb.resize(pixels_count);
+    memset(mRgb.data(), 0, pixels_count * sizeof(CRGB));
 }
 
 Frame::~Frame() {
-    if (mRgb) {
-        LargeBlockDeallocate(mRgb.release());
-    }
+    // Vector will handle memory cleanup automatically
 }
 
 void Frame::draw(CRGB *leds, DrawMode draw_mode) const {
-    if (mRgb) {
+    if (!mRgb.empty()) {
         switch (draw_mode) {
         case DRAW_MODE_OVERWRITE: {
-            memcpy(leds, mRgb.get(), mPixelsCount * sizeof(CRGB));
+            memcpy(leds, mRgb.data(), mPixelsCount * sizeof(CRGB));
             break;
         }
-        case DRAW_MODE_BLEND_BY_BLACK: {
+        case DRAW_MODE_BLEND_BY_MAX_BRIGHTNESS: {
             for (size_t i = 0; i < mPixelsCount; ++i) {
                 leds[i] = CRGB::blendAlphaMaxChannel(mRgb[i], leds[i]);
             }
@@ -52,11 +49,13 @@ void Frame::drawXY(CRGB *leds, const XYMap &xyMap, DrawMode draw_mode) const {
             uint32_t in_idx = xyMap(w, h);
             uint32_t out_idx = count++;
             if (in_idx >= mPixelsCount) {
-                FASTLED_WARN("Frame::drawXY: in index out of range: " << in_idx);
+                FASTLED_WARN(
+                    "Frame::drawXY: in index out of range: " << in_idx);
                 continue;
             }
             if (out_idx >= mPixelsCount) {
-                FASTLED_WARN("Frame::drawXY: out index out of range: " << out_idx);
+                FASTLED_WARN(
+                    "Frame::drawXY: out index out of range: " << out_idx);
                 continue;
             }
             switch (draw_mode) {
@@ -64,8 +63,9 @@ void Frame::drawXY(CRGB *leds, const XYMap &xyMap, DrawMode draw_mode) const {
                 leds[out_idx] = mRgb[in_idx];
                 break;
             }
-            case DRAW_MODE_BLEND_BY_BLACK: {
-                leds[out_idx] = CRGB::blendAlphaMaxChannel(mRgb[in_idx], leds[in_idx]);
+            case DRAW_MODE_BLEND_BY_MAX_BRIGHTNESS: {
+                leds[out_idx] =
+                    CRGB::blendAlphaMaxChannel(mRgb[in_idx], leds[in_idx]);
                 break;
             }
             }
@@ -73,7 +73,7 @@ void Frame::drawXY(CRGB *leds, const XYMap &xyMap, DrawMode draw_mode) const {
     }
 }
 
-void Frame::clear() { memset(mRgb.get(), 0, mPixelsCount * sizeof(CRGB)); }
+void Frame::clear() { memset(mRgb.data(), 0, mPixelsCount * sizeof(CRGB)); }
 
 void Frame::interpolate(const Frame &frame1, const Frame &frame2,
                         uint8_t amountofFrame2, CRGB *pixels) {
@@ -84,7 +84,7 @@ void Frame::interpolate(const Frame &frame1, const Frame &frame2,
     const CRGB *rgbFirst = frame1.rgb();
     const CRGB *rgbSecond = frame2.rgb();
 
-    if (!rgbFirst || !rgbSecond) {
+    if (frame1.mRgb.empty() || frame2.mRgb.empty()) {
         // Error, why are we getting null pointers?
         return;
     }
@@ -101,7 +101,7 @@ void Frame::interpolate(const Frame &frame1, const Frame &frame2,
         FASTLED_DBG("Frames must have the same size");
         return; // Frames must have the same size
     }
-    interpolate(frame1, frame2, amountOfFrame2, mRgb.get());
+    interpolate(frame1, frame2, amountOfFrame2, mRgb.data());
 }
 
 } // namespace fl

@@ -175,6 +175,7 @@ void DbgDoSimulatedKeyboardPress() {
 void loop() {
   //FASTLED_DBG("loop");
 
+
   // Calculate dt.
   static uint32_t s_prev_time = 0;
   uint32_t prev_time = 0;
@@ -245,6 +246,8 @@ void loop() {
     FASTLED_DBG("is_debugging = " << is_debugging);
   }
 
+
+  FastLED.show();
 }
 
 

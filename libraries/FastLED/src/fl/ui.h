@@ -1,148 +1,258 @@
+
 #pragma once
 
 #include <stdint.h>
 
+#include "fl/audio.h"
+#include "fl/engine_events.h"
+#include "fl/function_list.h"
 #include "fl/math_macros.h"
 #include "fl/namespace.h"
 #include "fl/template_magic.h"
+#include "fl/ui_impl.h"
 #include "fl/unused.h"
 #include "platforms/ui_defs.h"
+#include "sensors/button.h"
 
-#ifndef FASTLED_HAS_UI_SLIDER
-#define FASTLED_HAS_UI_SLIDER 0
-#endif
-
-#ifndef FASTLED_HAS_UI_BUTTON
-#define FASTLED_HAS_UI_BUTTON 0
-#endif
-
-#ifndef FASTLED_HAS_UI_CHECKBOX
-#define FASTLED_HAS_UI_CHECKBOX 0
-#endif
-
-#ifndef FASTLED_HAS_UI_NUMBER_FIELD
-#define FASTLED_HAS_UI_NUMBER_FIELD 0
-#endif
-
-#ifndef FASTLED_HAS_UI_TITLE
-#define FASTLED_HAS_UI_TITLE 0
-#endif
-
-#ifndef FASTLED_HAS_UI_DESCRIPTION
-#define FASTLED_HAS_UI_DESCRIPTION 0
-#endif
+#define FL_NO_COPY(CLASS)                                                      \
+    CLASS(const CLASS &) = delete;                                             \
+    CLASS &operator=(const CLASS &) = delete;
 
 namespace fl {
 
 // If the platform is missing ui components, provide stubs.
 
-#if !FASTLED_HAS_UI_SLIDER
-
-class UISlider {
+class UISlider : public UISliderImpl {
   public:
+    FL_NO_COPY(UISlider)
+    using Super = UISliderImpl;
     // If step is -1, it will be calculated as (max - min) / 100
     UISlider(const char *name, float value = 128.0f, float min = 1,
              float max = 255, float step = -1.f)
-        : mValue(value), mMin(MIN(min, max)), mMax(MAX(min, max)) {
-        FASTLED_UNUSED(name);
-        FASTLED_UNUSED(step);
-        if (value < min) {
-            mValue = min;
-        }
-        if (value > max) {
-            mValue = max;
-        }
-    }
-    ~UISlider() {}
-    float value() const { return mValue; }
+        : UISliderImpl(name, value, min, max, step), mListener(this) {}
+    float value() const { return Super::value(); }
     float value_normalized() const {
-        if (ALMOST_EQUAL(mMax, mMin, 0.0001f)) {
+        float min = Super::getMin();
+        float max = Super::getMax();
+        if (ALMOST_EQUAL(max, min, 0.0001f)) {
             return 0;
         }
-        return (mValue - mMin) / (mMax - mMin);
+        return (value() - min) / (max - min);
     }
-    float max_value() const { return mMax; }
-    void setValue(float value) { mValue = MAX(mMin, MIN(mMax, value)); }
-    operator float() const { return mValue; }
-    operator uint8_t() const { return static_cast<uint8_t>(mValue); }
-    operator uint16_t() const { return static_cast<uint16_t>(mValue); }
-    operator int() const { return static_cast<int>(mValue); }
-    template <typename T> T as() const { return static_cast<T>(mValue); }
+    float getMax() const { return Super::getMax(); }
+    void setValue(float value);
+    operator float() const { return Super::value(); }
+    operator uint8_t() const { return static_cast<uint8_t>(Super::value()); }
+    operator uint16_t() const { return static_cast<uint16_t>(Super::value()); }
+    operator int() const { return static_cast<int>(Super::value()); }
+    template <typename T> T as() const {
+        return static_cast<T>(Super::value());
+    }
+
+    int as_int() const { return static_cast<int>(Super::value()); }
 
     UISlider &operator=(float value) {
-        setValue(value);
+        Super::setValue(value);
         return *this;
     }
     UISlider &operator=(int value) {
-        setValue(static_cast<float>(value));
+        Super::setValue(static_cast<float>(value));
         return *this;
     }
 
 
+
+    int onChanged(function<void(UISlider &)> callback) {
+        int out = mCallbacks.add(callback);
+        mListener.addToEngineEventsOnce();
+        return out;
+    }
+    void clearCallbacks() { mCallbacks.clear(); }
+
+  protected:
+    struct Listener : public EngineEvents::Listener {
+        Listener(UISlider *owner) : mOwner(owner) {
+            EngineEvents::addListener(this);
+        }
+        ~Listener() {
+            if (added) {
+                EngineEvents::removeListener(this);
+            }
+        }
+        void addToEngineEventsOnce() {
+            if (added) {
+                return;
+            }
+            EngineEvents::addListener(this);
+            added = true;
+        }
+        void onBeginFrame() override;
+
+      private:
+        UISlider *mOwner;
+        bool added = false;
+    };
+
   private:
-    float mValue;
-    float mMin;
-    float mMax;
+    FunctionList<UISlider &> mCallbacks;
+    float mLastFrameValue = 0;
+    bool mLastFramevalueValid = false;
+    Listener mListener;
 };
 
-// template operator for >= against a jsSlider
+// template operator for >= against a jsSliderImpl
 
-#endif
-
-#if !FASTLED_HAS_UI_BUTTON
-
-class UIButton {
+class UIButton : public UIButtonImpl {
   public:
-    UIButton(const char *name) { FASTLED_UNUSED(name); }
+    FL_NO_COPY(UIButton)
+    using Super = UIButtonImpl;
+    UIButton(const char *name) : UIButtonImpl(name), mListener(this) {}
     ~UIButton() {}
-    bool isPressed() const { return false; }
-    bool clicked() const { return false; }
-    int clickedCount() const { return 0; }
-    operator bool() const { return false; }
-};
-
-#endif
-
-#if !FASTLED_HAS_UI_CHECKBOX
-
-class UICheckbox {
-  public:
-    UICheckbox(const char *name, bool value = false) : mValue(value) {
-        FASTLED_UNUSED(name);
+    bool isPressed() const {
+        if (Super::isPressed()) {
+            return true;
+        }
+        // If we have a real button, check if it's pressed
+        if (mRealButton) {
+            return mRealButton->isPressed();
+        }
+        // Otherwise, return the default state
+        return false;
     }
-    ~UICheckbox() {}
-    operator bool() const { return mValue; }
-    operator int() const { return mValue ? 1 : 0; }
-    UICheckbox &operator=(bool value) {
-        setValue(value);
-        return *this;
+    bool clicked() const {
+        if (Super::clicked()) {
+            return true;
+        }
+        if (mRealButton) {
+            // If we have a real button, check if it was clicked
+            return mRealButton->isPressed();
+        }
+        return false;
     }
-    UICheckbox &operator=(int value) {
-        setValue(value != 0);
-        return *this;
+    int clickedCount() const { return Super::clickedCount(); }
+    operator bool() const { return clicked(); }
+
+    void addRealButton(const Button& pin) {
+        mRealButton.reset(new Button(pin));
     }
+
+    void click() { Super::click(); }
+    int onChanged(function<void(UIButton &)> callback) {
+        int id = mCallbacks.add(callback);
+        mListener.addToEngineEventsOnce();
+        return id;
+    }
+
+    int onClicked(function<void()> callback) {
+        int id = mCallbacks.add([callback](UIButton &btn) {
+            if (btn.clicked()) {
+                callback();
+            }
+        });
+        mListener.addToEngineEventsOnce();
+        return id;
+    }
+
+    void removeCallback(int id) { mCallbacks.remove(id); }
+    void clearCallbacks() { mCallbacks.clear(); }
+
+  protected:
+    struct Listener : public EngineEvents::Listener {
+        Listener(UIButton *owner) : mOwner(owner) {
+            EngineEvents::addListener(this);
+        }
+        ~Listener() {
+            if (added) {
+                EngineEvents::removeListener(this);
+            }
+        }
+        void addToEngineEventsOnce() {
+            if (added) {
+                return;
+            }
+            EngineEvents::addListener(this);
+            added = true;
+        }
+        void onBeginFrame() override;
+
+      private:
+        UIButton *mOwner;
+        bool added = false;
+        bool mClickedLastFrame = false;
+    };
 
   private:
-    void setValue(bool value) { mValue = value; }
-    bool mValue;
+    FunctionList<UIButton &> mCallbacks;
+    Listener mListener;
+    fl::scoped_ptr<Button> mRealButton;
 };
 
-#endif
-
-#if !FASTLED_HAS_UI_NUMBER_FIELD
-
-class UINumberField {
+class UICheckbox : public UICheckboxImpl {
   public:
+    FL_NO_COPY(UICheckbox);
+    using Super = UICheckboxImpl;
+    UICheckbox(const char *name, bool value = false)
+        : UICheckboxImpl(name, value), mListener(this) {}
+    ~UICheckbox() {}
+
+    operator bool() const { return value(); }
+    explicit operator int() const { return static_cast<int>(value()); }
+    UICheckbox &operator=(bool value) {
+        impl() = value;
+        return *this;
+    }
+
+
+    void onChanged(function<void(UICheckbox &)> callback) {
+        mCallbacks.add(callback);
+        mListener.addToEngineEventsOnce();
+    }
+    void clearCallbacks() { mCallbacks.clear(); }
+
+  protected:
+    struct Listener : public EngineEvents::Listener {
+        Listener(UICheckbox *owner) : mOwner(owner) {
+            EngineEvents::addListener(this);
+        }
+        ~Listener() {
+            if (added) {
+                EngineEvents::removeListener(this);
+            }
+        }
+        void addToEngineEventsOnce() {
+            if (added) {
+                return;
+            }
+            EngineEvents::addListener(this);
+            added = true;
+        }
+        void onBeginFrame() override;
+
+      private:
+        UICheckbox *mOwner;
+        bool added = false;
+    };
+
+  private:
+    Super &impl() { return *this; }
+    FunctionList<UICheckbox &> mCallbacks;
+    bool mLastFrameValue = false;
+    bool mLastFrameValueValid = false;
+    Listener mListener;
+};
+
+class UINumberField : public UINumberFieldImpl {
+  public:
+    FL_NO_COPY(UINumberField);
+    using Super = UINumberFieldImpl;
     UINumberField(const char *name, double value, double min = 0,
                   double max = 100)
-        : mValue(value), mMin(MIN(min, max)), mMax(MAX(min, max)) {
-        FASTLED_UNUSED(name);
-    }
+        : UINumberFieldImpl(name, value, min, max), mListener(this) {}
     ~UINumberField() {}
-    double value() const { return mValue; }
-    void setValue(double value) { mValue = MAX(mMin, MIN(mMax, value)); }
-    operator double() const { return mValue; }
-    operator int() const { return static_cast<int>(mValue); }
+    double value() const { return Super::value(); }
+    void setValue(double value) { Super::setValue(value); }
+    operator double() const { return Super::value(); }
+    operator int() const { return static_cast<int>(Super::value()); }
     UINumberField &operator=(double value) {
         setValue(value);
         return *this;
@@ -152,33 +262,69 @@ class UINumberField {
         return *this;
     }
 
+
+
+    void onChanged(function<void(UINumberField &)> callback) {
+        mCallbacks.add(callback);
+        mListener.addToEngineEventsOnce();
+    }
+    void clearCallbacks() { mCallbacks.clear(); }
+
   private:
-    double mValue;
-    double mMin;
-    double mMax;
+    struct Listener : public EngineEvents::Listener {
+        Listener(UINumberField *owner) : mOwner(owner) {
+            EngineEvents::addListener(this);
+        }
+        ~Listener() {
+            if (added) {
+                EngineEvents::removeListener(this);
+            }
+        }
+        void addToEngineEventsOnce() {
+            if (added) {
+                return;
+            }
+            EngineEvents::addListener(this);
+            added = true;
+        }
+        void onBeginFrame() override;
+
+      private:
+        UINumberField *mOwner;
+        bool added = false;
+    };
+
+    Listener mListener;
+    double mLastFrameValue = 0;
+    bool mLastFrameValueValid = false;
+    FunctionList<UINumberField &> mCallbacks;
+
+    Super &impl() { return *this; }
 };
 
-#endif
-
-#if !FASTLED_HAS_UI_TITLE
-
-class UITitle {
+class UITitle : public UITitleImpl {
   public:
-    UITitle(const char *name) { FASTLED_UNUSED(name); }
+    FL_NO_COPY(UITitle);
+    UITitle(const char *name) : UITitleImpl(name) {}
     ~UITitle() {}
 };
 
-#endif
-
-#if !FASTLED_HAS_UI_DESCRIPTION
-
-class UIDescription {
+class UIDescription : public UIDescriptionImpl {
   public:
-    UIDescription(const char *name) { FASTLED_UNUSED(name); }
+    FL_NO_COPY(UIDescription);
+    UIDescription(const char *name) : UIDescriptionImpl(name) {}
     ~UIDescription() {}
 };
 
-#endif
+class UIAudio : public UIAudioImpl {
+  public:
+    FL_NO_COPY(UIAudio)
+    using Super = UIAudioImpl;
+    UIAudio(const char *name) : UIAudioImpl(name) {}
+    ~UIAudio() {}
+    AudioSample next() { return Super::next(); }
+    bool hasNext() { return Super::hasNext(); }
+};
 
 #define FASTLED_UI_DEFINE_OPERATORS(UI_CLASS)                                  \
     FASTLED_DEFINE_POD_COMPARISON_OPERATOR(UI_CLASS, >=)                       \

@@ -48,6 +48,9 @@ def use_clang_compiler() -> Tuple[Path, Path, Path]:
     os.environ["CXX"] = CLANGPP
     os.environ["AR"] = LLVM_AR
 
+    os.environ["CXXFLAGS"] = os.environ.get("CXXFLAGS", "") + " -ferror-limit=1"
+    os.environ["CFLAGS"] = os.environ.get("CFLAGS", "") + " -ferror-limit=1"
+
     if WASM_BUILD:
         wasm_flags = [
             "--target=wasm32",
@@ -142,7 +145,7 @@ def run_command(command: str, cwd: Path | None = None) -> None:
         sys.exit(1)
 
 
-def compile_fastledrary(specific_test: str | None = None) -> None:
+def compile_fastled(specific_test: str | None = None) -> None:
     if USE_ZIG:
         print("USING ZIG COMPILER")
         rtn = subprocess.run(
@@ -166,6 +169,7 @@ def compile_fastledrary(specific_test: str | None = None) -> None:
         "-G",
         "Ninja",
         "-DCMAKE_VERBOSE_MAKEFILE=ON",
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON",
     ]
 
     if WASM_BUILD:
@@ -180,6 +184,7 @@ def compile_fastledrary(specific_test: str | None = None) -> None:
                 "-DCMAKE_EXE_LINKER_FLAGS=-Wl,--no-entry -Wl,--export-all -Wl,--lto-O3 -Wl,-z,stack-size=8388608",
             ]
         )
+
     cmake_configure_command = subprocess.list2cmdline(cmake_configure_command_list)
     run_command(cmake_configure_command, cwd=BUILD_DIR)
 
@@ -279,7 +284,7 @@ def main() -> None:
     if args.clean or should_clean_build(build_info):
         clean_build_directory()
 
-    compile_fastledrary(args.test)
+    compile_fastled(args.test)
     update_build_info(build_info)
     print("FastLED library compiled successfully.")
 

@@ -9,7 +9,7 @@
  ************************************************************************************
  * MIT License
  *
- * Copyright (c) 2015-2023 Ken Shirriff http://www.righto.com, Rafi Khan, Armin Joachimsmeyer
+ * Copyright (c) 2015-2025 Ken Shirriff http://www.righto.com, Rafi Khan, Armin Joachimsmeyer
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -73,7 +73,10 @@
  * Air conditioners often send a longer protocol data stream up to 750 bits.
  */
 #if !defined(RAW_BUFFER_LENGTH)
-#  if (defined(RAMEND) && RAMEND <= 0x8FF) || (defined(RAMSIZE) && RAMSIZE < 0x8FF)
+#  if (defined(RAMEND) && RAMEND <= 0x2FF) || (defined(RAMSIZE) && RAMSIZE < 0x2FF)
+// for RAMsize <= 512 bytes
+#define RAW_BUFFER_LENGTH  100  ///< Length of raw duration buffer. Must be even. 100 supports up to 48 bit codings inclusive 1 start and 1 stop bit.
+#  elif (defined(RAMEND) && RAMEND <= 0x8FF) || (defined(RAMSIZE) && RAMSIZE < 0x8FF)
 // for RAMsize <= 2k
 #define RAW_BUFFER_LENGTH  200  ///< Length of raw duration buffer. Must be even. 100 supports up to 48 bit codings inclusive 1 start and 1 stop bit.
 #  else
@@ -203,8 +206,12 @@ class IRrecv {
 public:
 
     IRrecv();
-    IRrecv(uint_fast8_t aReceivePin) __attribute__ ((deprecated ("Please use the default IRrecv instance \"IrReceiver\" and IrReceiver.begin(), and not your own IRrecv instance.")));
-    IRrecv(uint_fast8_t aReceivePin, uint_fast8_t aFeedbackLEDPin) __attribute__ ((deprecated ("Please use the default IRrecv instance \"IrReceiver\" and IrReceiver.begin(), and not your own IRrecv instance..")));
+    IRrecv(
+            uint_fast8_t aReceivePin)
+                    __attribute__ ((deprecated ("Please use the default IRrecv instance \"IrReceiver\" and IrReceiver.begin(), and not your own IRrecv instance.")));
+    IRrecv(uint_fast8_t aReceivePin,
+            uint_fast8_t aFeedbackLEDPin)
+                    __attribute__ ((deprecated ("Please use the default IRrecv instance \"IrReceiver\" and IrReceiver.begin(), and not your own IRrecv instance..")));
     void setReceivePin(uint_fast8_t aReceivePinNumber);
 #if !defined(IR_REMOTE_DISABLE_RECEIVE_COMPLETE_CALLBACK)
     void registerReceiveCompleteCallback(void (*aReceiveCompleteCallbackFunction)(void));
@@ -221,7 +228,6 @@ public:
     void restartTimer(uint32_t aMicrosecondsToAddToGapCounter);
     void restartTimerWithTicksToAdd(uint16_t aTicksToAddToGapCounter);
     void restartAfterSend();
-
 
     bool available();
     IRData* read(); // returns decoded data
@@ -244,6 +250,7 @@ public:
      * Useful info and print functions
      */
     void printIRResultMinimal(Print *aSerial);
+    void printIRDuration(Print *aSerial, bool aOutputMicrosecondsInsteadOfTicks);
     void printIRResultRawFormatted(Print *aSerial, bool aOutputMicrosecondsInsteadOfTicks = true);
     void printIRResultAsCVariables(Print *aSerial);
     uint8_t getMaximumMarkTicksFromRawData();
@@ -254,7 +261,7 @@ public:
     /*
      * Next 4 functions are also available as non member functions
      */
-    bool printIRResultShort(Print *aSerial, bool aPrintRepeatGap = true, bool aCheckForRecordGapsMicros = true);
+    bool printIRResultShort(Print *aSerial, bool aCheckForRecordGapsMicros = true);
     void printDistanceWidthTimingInfo(Print *aSerial, DistanceWidthTimingInfoStruct *aDistanceWidthTimingInfo);
     void printIRSendUsage(Print *aSerial);
 #if defined(__AVR__)
@@ -278,6 +285,9 @@ public:
      */
     bool decodePulseDistanceWidthData(PulseDistanceWidthProtocolConstants *aProtocolConstants, uint_fast8_t aNumberOfBits,
             IRRawlenType aStartOffset = 3);
+
+    bool decodePulseDistanceWidthData_P(PulseDistanceWidthProtocolConstants const *aProtocolConstantsPGM,
+            uint_fast8_t aNumberOfBits, IRRawlenType aStartOffset = 3);
 
     bool decodePulseDistanceWidthData(uint_fast8_t aNumberOfBits, IRRawlenType aStartOffset, uint16_t aOneMarkMicros,
             uint16_t aOneSpaceMicros, uint16_t aZeroMarkMicros, bool aMSBfirst);
@@ -350,15 +360,19 @@ public:
     void initDecodedIRData();
     uint_fast8_t compare(uint16_t oldval, uint16_t newval);
     bool checkHeader(PulseDistanceWidthProtocolConstants *aProtocolConstants);
+    bool checkHeader_P(PulseDistanceWidthProtocolConstants const *aProtocolConstantsPGM);
     void checkForRepeatSpaceTicksAndSetFlag(uint16_t aMaximumRepeatSpaceTicks);
     bool checkForRecordGapsMicros(Print *aSerial);
 
     IRData decodedIRData;       // Decoded IR data for the application
 
-    // Last decoded IR data for repeat detection and parity for Denon autorepeat
+    // Last decoded IR data for repeat detection and to fill in JVC, LG, NEC repeat values. Parity for Denon autorepeat
     decode_type_t lastDecodedProtocol;
-    uint32_t lastDecodedAddress;
-    uint32_t lastDecodedCommand;
+    uint16_t lastDecodedAddress;
+    uint16_t lastDecodedCommand;
+#if defined(DECODE_DISTANCE_WIDTH)
+    IRRawDataType lastDecodedRawData;
+#endif
 
     uint8_t repeatCount;        // Used e.g. for Denon decode for autorepeat decoding.
 };
@@ -463,7 +477,7 @@ public:
     // The next function is a dummy to avoid acceptance of pre 4.3 calls to begin(DISABLE_LED_FEEDBACK);
     void begin(uint8_t aSendPin)
 #  if !defined (DOXYGEN)
-            __attribute__ ((deprecated ("Error: IR_SEND_PIN is still defined, therefore the function begin(aSendPin) is NOT available. You must disable '#define IR_SEND_PIN' to enable this function.")));
+            __attribute__ ((deprecated ("ERROR: IR_SEND_PIN is still defined, therefore the function begin(aSendPin) is NOT available. You must disable '#define IR_SEND_PIN' to enable this function.")));
 #  endif
 
     // The next function is a dummy to avoid acceptance of pre 4.0 calls to begin(IR_SEND_PIN, DISABLE_LED_FEEDBACK);
@@ -487,28 +501,49 @@ public:
     void enableHighFrequencyIROut(uint_fast16_t aFrequencyKHz); // Used for Bang&Olufsen
 #endif
 
+    /*
+     * Array functions
+     */
     void sendPulseDistanceWidthFromArray(uint_fast8_t aFrequencyKHz, uint16_t aHeaderMarkMicros, uint16_t aHeaderSpaceMicros,
             uint16_t aOneMarkMicros, uint16_t aOneSpaceMicros, uint16_t aZeroMarkMicros, uint16_t aZeroSpaceMicros,
             IRRawDataType *aDecodedRawDataArray, uint16_t aNumberOfBits, uint8_t aFlags, uint16_t aRepeatPeriodMillis,
             int_fast8_t aNumberOfRepeats);
+    void sendPulseDistanceWidthFromPGMArray(uint_fast8_t aFrequencyKHz, uint16_t aHeaderMarkMicros, uint16_t aHeaderSpaceMicros,
+            uint16_t aOneMarkMicros, uint16_t aOneSpaceMicros, uint16_t aZeroMarkMicros, uint16_t aZeroSpaceMicros,
+            IRRawDataType const *aDecodedRawDataPGMArray, uint16_t aNumberOfBits, uint8_t aFlags, uint16_t aRepeatPeriodMillis,
+            int_fast8_t aNumberOfRepeats);
     void sendPulseDistanceWidthFromArray(PulseDistanceWidthProtocolConstants *aProtocolConstants,
             IRRawDataType *aDecodedRawDataArray, uint16_t aNumberOfBits, int_fast8_t aNumberOfRepeats);
+    void sendPulseDistanceWidthFromPGMArray(PulseDistanceWidthProtocolConstants *aProtocolConstants,
+            IRRawDataType const *aDecodedRawDataPGMArray, uint16_t aNumberOfBits, int_fast8_t aNumberOfRepeats);
+    void sendPulseDistanceWidthFromArray_P(PulseDistanceWidthProtocolConstants const *aProtocolConstantsPGM,
+            IRRawDataType *aDecodedRawDataArray, uint16_t aNumberOfBits, int_fast8_t aNumberOfRepeats);
+    void sendPulseDistanceWidthFromPGMArray_P(PulseDistanceWidthProtocolConstants const *aProtocolConstantsPGM,
+            IRRawDataType const *aDecodedRawDataPGMArray, uint16_t aNumberOfBits, int_fast8_t aNumberOfRepeats);
+
     void sendPulseDistanceWidthFromArray(uint_fast8_t aFrequencyKHz, DistanceWidthTimingInfoStruct *aDistanceWidthTimingInfo,
             IRRawDataType *aDecodedRawDataArray, uint16_t aNumberOfBits, uint8_t aFlags, uint16_t aRepeatPeriodMillis,
             int_fast8_t aNumberOfRepeats);
+    void sendPulseDistanceWidthFromArray_P(uint_fast8_t aFrequencyKHz,
+            DistanceWidthTimingInfoStruct const *aDistanceWidthTimingInfoPGM, IRRawDataType *aDecodedRawDataArray,
+            uint16_t aNumberOfBits, uint8_t aFlags, uint16_t aRepeatPeriodMillis, int_fast8_t aNumberOfRepeats);
 
     void sendPulseDistanceWidth(PulseDistanceWidthProtocolConstants *aProtocolConstants, IRRawDataType aData,
             uint_fast8_t aNumberOfBits, int_fast8_t aNumberOfRepeats);
+    void sendPulseDistanceWidth_P(PulseDistanceWidthProtocolConstants const *aProtocolConstantsPGM, IRRawDataType aData,
+            uint_fast8_t aNumberOfBits, int_fast8_t aNumberOfRepeats);
     void sendPulseDistanceWidthData(PulseDistanceWidthProtocolConstants *aProtocolConstants, IRRawDataType aData,
+            uint_fast8_t aNumberOfBits);
+    void sendPulseDistanceWidthData_P(PulseDistanceWidthProtocolConstants const *aProtocolConstantsPGM, IRRawDataType aData,
             uint_fast8_t aNumberOfBits);
     void sendPulseDistanceWidth(uint_fast8_t aFrequencyKHz, uint16_t aHeaderMarkMicros, uint16_t aHeaderSpaceMicros,
             uint16_t aOneMarkMicros, uint16_t aOneSpaceMicros, uint16_t aZeroMarkMicros, uint16_t aZeroSpaceMicros,
             IRRawDataType aData, uint_fast8_t aNumberOfBits, uint8_t aFlags, uint16_t aRepeatPeriodMillis,
-            int_fast8_t aNumberOfRepeats, void (*aSpecialSendRepeatFunction)() = NULL);
+            int_fast8_t aNumberOfRepeats, void (*aSpecialSendRepeatFunction)() = nullptr);
     void sendPulseDistanceWidth(uint_fast8_t aFrequencyKHz, uint16_t aHeaderMarkMicros, uint16_t aHeaderSpaceMicros,
             uint16_t aOneMarkMicros, uint16_t aOneSpaceMicros, uint16_t aZeroMarkMicros, uint16_t aZeroSpaceMicros,
             IRRawDataType aData, uint_fast8_t aNumberOfBits, bool aMSBFirst, bool aSendStopBit, uint16_t aRepeatPeriodMillis,
-            int_fast8_t aNumberOfRepeats, void (*aSpecialSendRepeatFunction)() = NULL)
+            int_fast8_t aNumberOfRepeats, void (*aSpecialSendRepeatFunction)() = nullptr)
                     __attribute__ ((deprecated ("Since version 4.1.0 parameter aSendStopBit is not longer required.")));
     void sendPulseDistanceWidthData(uint16_t aOneMarkMicros, uint16_t aOneSpaceMicros, uint16_t aZeroMarkMicros,
             uint16_t aZeroSpaceMicros, IRRawDataType aData, uint_fast8_t aNumberOfBits, uint8_t aFlags);
@@ -537,7 +572,7 @@ public:
     void sendBangOlufsenRawDataLink(uint64_t aRawData, int_fast8_t aBits, bool aBackToBack = false,
             bool aUseDatalinkTiming = false);
     void sendBoseWave(uint8_t aCommand, int_fast8_t aNumberOfRepeats = NO_REPEATS);
-    void sendDenon(uint8_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats, bool aSendSharp = false);
+    void sendDenon(uint8_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats, uint8_t aSendSharpFrameMarker = 0);
     void sendDenonRaw(uint16_t aRawData, int_fast8_t aNumberOfRepeats = NO_REPEATS)
 #if !defined (DOXYGEN)
             __attribute__ ((deprecated ("Please use sendDenon(aAddress, aCommand, aNumberOfRepeats).")));
@@ -569,7 +604,8 @@ public:
 
     void sendRC5(uint8_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats, bool aEnableAutomaticToggle = true);
     void sendRC6(uint8_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats, bool aEnableAutomaticToggle = true);
-    void sendRC6A(uint8_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats, uint16_t aCustomer, bool aEnableAutomaticToggle = true);
+    void sendRC6A(uint8_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats, uint16_t aCustomer,
+            bool aEnableAutomaticToggle = true);
     void sendSamsungLGRepeat();
     void sendSamsung(uint16_t aAddress, uint16_t aCommand, int_fast8_t aNumberOfRepeats);
     void sendSamsung16BitAddressAnd8BitCommand(uint16_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats);
@@ -577,6 +613,7 @@ public:
     void sendSamsung48(uint16_t aAddress, uint32_t aCommand, int_fast8_t aNumberOfRepeats);
     void sendSamsungLG(uint16_t aAddress, uint16_t aCommand, int_fast8_t aNumberOfRepeats);
     void sendSharp(uint8_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats); // redirected to sendDenon
+    void sendSharp2(uint8_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats); // redirected to sendDenon
     void sendSony(uint16_t aAddress, uint8_t aCommand, int_fast8_t aNumberOfRepeats, uint8_t numberOfBits = 12); // SIRCS_12_PROTOCOL
 
     void sendLegoPowerFunctions(uint8_t aChannel, uint8_t tCommand, uint8_t aMode, bool aDoSend5Times = true);

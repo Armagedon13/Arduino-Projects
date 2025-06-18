@@ -10,33 +10,29 @@
 #include <memory>
 #include <stdio.h>
 
-
-
 #include "fl/map.h"
 #include "fl/singleton.h"
 #include "fl/slice.h"
 
 #include "active_strip_data.h"
-#include "platforms/wasm/engine_listener.h"
 #include "fl/map.h"
-#include "js.h"
-#include "fl/str.h"
 #include "fl/namespace.h"
+#include "fl/str.h"
+#include "js.h"
+#include "platforms/wasm/engine_listener.h"
 
-using namespace fl;
+namespace fl {
 
-
-FASTLED_NAMESPACE_BEGIN
-
-ActiveStripData& ActiveStripData::Instance() {
+ActiveStripData &ActiveStripData::Instance() {
     return fl::Singleton<ActiveStripData>::instance();
 }
 
-void ActiveStripData::update(int id, uint32_t now, const uint8_t* pixel_data, size_t size) {
+void ActiveStripData::update(int id, uint32_t now, const uint8_t *pixel_data,
+                             size_t size) {
     mStripMap.update(id, SliceUint8(pixel_data, size));
 }
 
-void ActiveStripData::updateScreenMap(int id, const ScreenMap& screenmap) {
+void ActiveStripData::updateScreenMap(int id, const ScreenMap &screenmap) {
     mScreenMap.update(id, screenmap);
 }
 
@@ -68,8 +64,8 @@ Str ActiveStripData::infoJsonString() {
     return jsonBuffer;
 }
 
-static ActiveStripData* getActiveStripDataRef() {
-    ActiveStripData* instance = &fl::Singleton<ActiveStripData>::instance();
+static ActiveStripData *getActiveStripDataRef() {
+    ActiveStripData *instance = &fl::Singleton<ActiveStripData>::instance();
     return instance;
 }
 
@@ -79,14 +75,12 @@ EMSCRIPTEN_BINDINGS(engine_events_constructors) {
         .function("getPixelData_Uint8", &ActiveStripData::getPixelData_Uint8);
 }
 
-
-// gcc constructor to get the 
+// gcc constructor to get the
 // ActiveStripData instance created.
-__attribute__((constructor))
-void __init_ActiveStripData() {
+__attribute__((constructor)) void __init_ActiveStripData() {
     ActiveStripData::Instance();
 }
 
-FASTLED_NAMESPACE_END
+} // namespace fl
 
 #endif

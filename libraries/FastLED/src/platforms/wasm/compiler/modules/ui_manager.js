@@ -4,6 +4,16 @@
 /* eslint-disable max-len */
 /* eslint-disable guard-for-in */
 
+import { AudioManager } from './audio_manager.js';
+
+// Create a global instance of AudioManager
+const audioManager = new AudioManager();
+
+// Make setupAudioAnalysis available globally
+window.setupAudioAnalysis = function(audioElement) {
+  return audioManager.setupAudioAnalysis(audioElement);
+};
+
 function createNumberField(element) {
   const controlDiv = document.createElement('div');
   controlDiv.className = 'ui-control';
@@ -24,6 +34,10 @@ function createNumberField(element) {
   controlDiv.appendChild(numberInput);
 
   return controlDiv;
+}
+
+function createAudioField(element) {
+  return audioManager.createAudioField(element);
 }
 
 function createSlider(element) {
@@ -166,6 +180,7 @@ function setDescription(descData) {
   }
 }
 
+
 export class UiManager {
   constructor(uiControlsId) {
     this.uiElements = {};
@@ -187,9 +202,43 @@ export class UiManager {
         currentValue = attr === 'true';
       } else if (element.type === 'number') {
         currentValue = parseFloat(element.value);
+      } else if (element.type === 'file' && element.accept === 'audio/*') {
+        // Handle audio input - get all accumulated sample blocks
+        if (window.audioData && window.audioData.audioBuffers && window.audioData.hasActiveSamples) {
+          const buffers = window.audioData.audioBuffers[element.id];
+          
+          if (buffers && buffers.length > 0) {
+            // Concatenate all accumulated sample blocks into one flat array
+            const allSamples = [].concat(...buffers);
+            
+            // Log some stats about the accumulated audio data
+            // if (Math.random() < 0.1) {
+            //   console.log(`Audio data for ${id}:`);
+            //   console.log(`  Blocks: ${buffers.length}`);
+            //   console.log(`  Total samples: ${allSamples.length}`);
+            //   console.log(`  First 5 samples: ${allSamples.slice(0, 5)}`);
+            //   console.log(`  Last 5 samples: ${allSamples.slice(-5)}`);
+            // }
+            
+            // Always include audio samples in changes when audio is active
+            changes[id] = allSamples;
+            hasChanges = true;
+            
+            // Clear the buffer after sending samples
+            window.audioData.audioBuffers[element.id] = [];
+            window.audioData.hasActiveSamples = false;
+            
+            continue; // Skip the comparison below for audio
+          }
+        }
+        
+        // If we reach here, either no samples are available or they've already been sent
+        // Don't add to changes object, so we don't spam with empty arrays
       } else {
         currentValue = parseFloat(element.value);
       }
+      
+      // For non-audio elements, only include if changed
       if (this.previousUiState[id] !== currentValue) {
         changes[id] = currentValue;
         hasChanges = true;
@@ -197,6 +246,34 @@ export class UiManager {
       }
     }
 
+    if (hasChanges) {
+      // Log the final JSON that will be sent to FastLED
+      // console.log('Sending UI changes to FastLED:');
+      
+      // Check if there's audio data in the changes
+      const audioKeys = Object.keys(changes).filter(key => 
+        this.uiElements[key] && 
+        this.uiElements[key].type === 'file' && 
+        this.uiElements[key].accept === 'audio/*'
+      );
+      
+      if (audioKeys.length > 0) {
+        // For each audio element, log summary info but not the full array
+        audioKeys.forEach(key => {
+          const audioData = changes[key];
+          //console.log(`  Audio ${key}: ${audioData.length} samples`);
+          
+          // Create a copy of changes with abbreviated audio data for logging
+          const changesCopy = {...changes};
+          changesCopy[key] = `[${audioData.length} samples]`;
+          //console.log(JSON.stringify(changesCopy, null, 2));
+        });
+      } else {
+        // No audio data, log the full changes object
+        //console.log(JSON.stringify(changes, null, 2));
+      }
+    }
+    
     return hasChanges ? changes : null;
   }
 
@@ -231,7 +308,21 @@ export class UiManager {
         control = createButton(data);
       } else if (data.type === 'number') {
         control = createNumberField(data);
+      } else if (data.type === 'audio') {
+        control = createAudioField(data);
       }
+
+      // AI hallucinated this:
+      // if (hasGroup) {
+      //   const groupContainer = document.getElementById(group);
+      //   if (!groupContainer) {
+      //     console.error(`Group ${group} not found in the HTML`);
+      //     return;
+      //   }
+      //   groupContainer.appendChild(control);
+      // } else {
+      //   uiControlsContainer.appendChild(control);
+      // }
 
       if (control) {
         foundUi = true;

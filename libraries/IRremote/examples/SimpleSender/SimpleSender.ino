@@ -3,8 +3,9 @@
  *
  *  Demonstrates sending IR codes in standard format with address and command
  *  An extended example for sending can be found as SendDemo.
+ *  Sending IR codes using several pins for sending is implements in the MultipleSendPins example.
  *
- *  Copyright (C) 2020-2022  Armin Joachimsmeyer
+ *  Copyright (C) 2020-2025  Armin Joachimsmeyer
  *  armin.joachimsmeyer@gmail.com
  *
  *  This file is part of Arduino-IRremote https://github.com/Arduino-IRremote/Arduino-IRremote.
@@ -29,8 +30,6 @@ void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
 
     Serial.begin(115200);
-    while (!Serial)
-        ; // Wait for Serial to become available. Is optimized away for some cores.
 
     // Just to know which program is running on my Arduino
     Serial.println(F("START " __FILE__ " from " __DATE__ "\r\nUsing library version " VERSION_IRREMOTE));

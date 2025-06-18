@@ -1,6 +1,70 @@
+FastLED 3.9.18 + 3.9.19
+==============
+* Hotfixes for AVR platforms for 3.9.17
+
+
+FastLED 3.9.17
+==============
+
+* esp
+  * esp-idf v5.4 fixes to include lcd_50
+    * https://github.com/FastLED/FastLED/pull/1924
+    * Thanks! https://github.com/rommo911
+  * RMT5 will now respect DMA_MODE=DMA_ENABLED
+    * Default is still off.
+    * https://github.com/FastLED/FastLED/pull/1927
+s.
+  * datastructures
+    * FastLED now has it's own subset of std lib. fl::vector<>, fl::hash_map<> etc so you can bring in external code to your sketches easily and have it still be cross platform compatible. Our std lib subset is backed by a fleet of platform testers so it compiles and works everywhere. Will this increase the AVR and other small memory footprints? No, we have strict checks for these platforms and compile size remains the same.
+    * fl::hash_map
+      * open addressing but with inlined rehashing when "tombstones" fill up half the slots.
+    * fl::hash_map_inlined
+    * fl::hash_set
+    * fl::vector
+    * fl::vector_inlined
+    * fl::function<>
+    * fl::variant<T,...>
+    * fl::optional<T>
+* graphics
+  * CRGB::downscale(...) for downsizing led matrices / strips.
+    * Essentially pixel averaging.
+    * Uses a fastpath when downsizeing from M by N to M/2 by N/2.
+    * Uses fixed-integer fractional downsizing when the destination matrix/strip is any other ratio.
+  * CRGB::upscale(...) for expanding led matrices / strips, uses bilinear expansion.
+  * XYPath (Work in progress):
+    * Create paths that smoothly interpolate in response to animation values => [0, 1.0f]
+    * Still a work in progress.
+  * Subpixel calculations.
+    * Let's face it, low resolution matrices and strips produce bad results with simple pixel rendering in integer space. I've implemented the ability for using floating point x,y coordinates and then splatting that pixel to a 2x2 tile. If a point is dead center on a led then only that led in the tile will light up, but if that point moves then other neighboring leds will start to light up in proportion to the overlap. This gives 256 effective steps in the X and Y directions between neightbors. This **greatly** improves visual quality without having to super sample.
+  * Line Simplification
+    * Take a line with lots of points and selectively remove points that
+      have the least impact on the line, keeping the overall shape. We use an improved Douglas-Peucker algorithm that is memory efficient. We also have a version that is more cpu intensive which will will hit a target number of vertices.
+  * RasterSparse: efficient rendering to an intermediate buffer that only allocates x,y points for values actually written, then flush to LED matrix/strip. See below for more information.
+  * traverseGridSegment
+    * Given a line A-B, find all the intersecting cells on a grid.
+    * Essentially 2D ray tracing.
+    * Great for optimization of particle trails and rastering an entire XYPath.
+      * Example:
+        * Full XYPath (e.g. Heart) renders 200 xy points
+        * Use line simplification to reduce this to 50 most significant points -> 49 line segments
+        * For each line segment
+          * traverseGridSegment computes all the intersecting grid points
+            * for each grid point find the closest point on the segment, call it closest-pt
+              * closet-pt generates a tile2x2 of itself plus it's 3 neighbors
+                * for each tile2x2 it will have a uint8_t value representing it's intensity / closeness to center.
+                * tile2x2 list/stream -> raster (RasterSparse)
+                * raster -> composite to LED matrix/strip using a gradient or draw functor.
+  * RasterSparse
+    * A memory efficient raster that elements like the XYPath can write to as an intermediate step to writing to the display LEDs. This allows layering: very important for creating things like "particle trails" which require multiple writing to similar pixels destructively and then flushed to the LED display. For example if a particle has a long fade trail with say 30 points of history, then this entire path can be destructively drawn to the raster then composited to the led display as an unified layer.
+    * "Sparse" in "RasterSparse" here means that the x,y values of the pixels being written to are stored in a hash table rather than a spanning grid. This greatly reduces memory usage and improves performance. To prevent excessive computation with hashing, a small 8-unit inlined hash_table with a FastHash function is carefully used to exploit the inherent locality of computing particle and paths.
+    * Right now, RasterSparse is only implemented for uint8_t values and not an entire CRGB pixel, as CRGB values are typically computed via an algorithm during the compositing process. For example a gradient function can take a rasterized particle trail and apply coloring.
+  * LineMath
+    * Take a line A-B and calculate the closest distance from the line to a point P. This is important to optimize rendering if oversampling takes too much CPU.
+  
+
 FastLED 3.9.16
 ==============
-* New inoise16 $D function taking in x,y,z,t
+* New inoise16 4D function taking in x,y,z,t
   * This is good for 3D oriented noise functions + time factor.
   * Wrap an led strip as a cylinder and use this function to map noise to it.
 * New Wave Simulator in 1D and 2D
@@ -270,7 +334,7 @@ FastLED 3.9.5
     * `sensors/pir.h`
       * `fl::Pir`: This is a basic PIR that will tell you if the sensor is curently triggered. It doesn't do much else.
       * `fl::AdvancedPir`: An extended version of `fl::Pir` which gives transition effects as it turns on and off. Here is what the
-        the constructor looks like: `fl::PirAdvanced(int pin, uint32_t latchMs = 5000, uint32_t risingTime = 1000, uint32_t fallingTime = 1000)`.
+        the constructor looks like: `fl::Pir(int pin, uint32_t latchMs = 5000, uint32_t risingTime = 1000, uint32_t fallingTime = 1000)`.
         You will give it the pin, an optional latch time (how long it stays on for), the rising time (how long to go from off to on) and the falling
         time which is how long it takes to go from on to off. By default it will ramp on for one second, stay on for 5 seconds at full brightness, then
         start turning off for one second. All you have to do is give it the current `millis()` value.

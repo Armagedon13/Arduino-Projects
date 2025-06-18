@@ -67,7 +67,7 @@
 #include "PinDefinitionsAndMore.h" // Define macros for input and output pin etc.
 
 #if !defined(RAW_BUFFER_LENGTH)
-// For air condition remotes it requires 750. Default is 200.
+// For air condition remotes it may require up to 750. Default is 200.
 #  if (defined(RAMEND) && RAMEND <= 0x4FF) || (defined(RAMSIZE) && RAMSIZE < 0x4FF)
 #define RAW_BUFFER_LENGTH  360
 #  else
@@ -292,8 +292,6 @@ static void receive(Stream &stream) {
  */
 void setup() {
     Serial.begin(BAUDRATE);
-    while (!Serial)
-        ; // Wait for Serial to become available. Is optimized away for some cores.
 
     Serial.println(F(PROGNAME " " VERSION));
     // Just to know which program is running on my Arduino

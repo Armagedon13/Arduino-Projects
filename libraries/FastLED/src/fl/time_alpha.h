@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
+#include "fl/math_macros.h"
+#include "fl/warn.h"
+
 namespace fl {
 
 // Use this function to compute the alpha value based on the time elapsed
@@ -11,14 +14,26 @@ uint8_t time_alpha8(uint32_t now, uint32_t start, uint32_t end);
 // 0 -> 65535
 uint16_t time_alpha16(uint32_t now, uint32_t start, uint32_t end);
 
+inline float time_alphaf(uint32_t now, uint32_t start, uint32_t end) {
+    if (now < start) {
+        return 0.0f;
+    }
+    uint32_t elapsed = now - start;
+    uint32_t total = end - start;
+    float out = static_cast<float>(elapsed) / static_cast<float>(total);
+    return out;
+}
 
 class TimeAlpha {
   public:
     virtual ~TimeAlpha() = default;
     virtual void trigger(uint32_t now) = 0;
-    virtual uint8_t update(uint32_t now) = 0;
+    virtual uint8_t update8(uint32_t now) = 0;
     virtual uint16_t update16(uint32_t now) {
-        return static_cast<uint16_t>(update(now) << 8);
+        return static_cast<uint16_t>(update8(now) << 8) + 0xFF;
+    }
+    virtual float updatef(uint32_t now) {
+        return static_cast<float>(update16(now)) / 65535.0f;
     }
     virtual bool isActive(uint32_t now) const = 0;
 };
@@ -37,10 +52,8 @@ class TimeAlpha {
  *
  *
  */
-class TimeRamp: public TimeAlpha {
+class TimeRamp : public TimeAlpha {
   public:
-    
-
     /// @param latchMs     total active time (ms)
     /// @param risingTime  time to ramp from 0→255 (ms)
     /// @param fallingTime time to ramp from 255→0 (ms)
@@ -57,7 +70,7 @@ class TimeRamp: public TimeAlpha {
 
     /// Compute current 0–255 output based on how much time has elapsed since
     /// trigger().
-    uint8_t update(uint32_t now) override;
+    uint8_t update8(uint32_t now) override;
 
   private:
     uint32_t mLatchMs;
@@ -72,24 +85,23 @@ class TimeRamp: public TimeAlpha {
     uint8_t mLastValue = 0;
 };
 
-
 /*
  *                       amplitude
  *                          ^
  *  255 ──────────────────────────────────────
- *                     /         
- *                    /           
- *                   /             
- *                  /               
+ *                     /
+ *                    /
+ *                   /
+ *                  /
  *    0 ────────────┴                       --> time (ms)
  *                  t0   t1
  *
  *
  *
  */
-class TimeLinear: TimeAlpha {
+class TimeClampedTransition : public TimeAlpha {
   public:
-    TimeLinear(uint32_t duration) : mDuration(duration) {}
+    TimeClampedTransition(uint32_t duration) : mDuration(duration) {}
 
     void trigger(uint32_t now) override {
         mStart = now;
@@ -113,7 +125,7 @@ class TimeLinear: TimeAlpha {
         return true;
     }
 
-    uint8_t update(uint32_t now) override {
+    uint8_t update8(uint32_t now) override {
         bool not_started = (mEnd == 0) && (mStart == 0);
         if (not_started) {
             // if we have not started, we are not active
@@ -123,10 +135,25 @@ class TimeLinear: TimeAlpha {
         return out;
     }
 
+    float updatef(uint32_t now) override {
+        bool not_started = (mEnd == 0) && (mStart == 0);
+        if (not_started) {
+            return 0;
+        }
+        float out = time_alphaf(now, mStart, mEnd);
+        if (mMaxClamp > 0.f) {
+            out = MIN(out, mMaxClamp);
+        }
+        return out;
+    }
+
+    void set_max_clamp(float max) { mMaxClamp = max; }
+
   private:
     uint32_t mStart = 0;
     uint32_t mDuration = 0;
     uint32_t mEnd = 0;
+    float mMaxClamp = -1.f; // default disabled.
 };
 
 } // namespace fl

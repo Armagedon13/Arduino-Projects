@@ -13,6 +13,14 @@
 #define FASTLED_ALLOW_INTERRUPTS 0
 #include <FastLED.h>
 #include "fx/1d/pacifica.h"
+#include "fl/screenmap.h"
+#include "defs.h"  // for ENABLE_SKETCH
+
+#if !ENABLE_SKETCH
+void setup() {}
+void loop() {}
+#else
+
 
 using namespace fl;
 
@@ -26,9 +34,11 @@ CRGB leds[NUM_LEDS];
 Pacifica pacifica(NUM_LEDS);
 
 void setup() {
-  delay(3000); // 3 second delay for boot recovery, and a moment of silence
+  Serial.begin(115200);
+  ScreenMap screenMap = ScreenMap::DefaultStrip(NUM_LEDS, 1.5f, 0.5f);
   FastLED.addLeds<LED_TYPE,DATA_PIN,COLOR_ORDER>(leds, NUM_LEDS)
-        .setCorrection(TypicalLEDStrip);
+        .setCorrection(TypicalLEDStrip)
+        .setScreenMap(screenMap);
   FastLED.setMaxPowerInVoltsAndMilliamps(5, MAX_POWER_MILLIAMPS);
 }
 
@@ -38,3 +48,5 @@ void loop() {
     FastLED.show();
   }
 }
+
+#endif // ENABLE_SKETCH

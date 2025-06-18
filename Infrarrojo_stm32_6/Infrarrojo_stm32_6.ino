@@ -120,7 +120,7 @@ void loop() {
 
     float tempC = mlx.readObjectTempC();
     if (isnan(tempC)) {
-      Serial1.println("ERROR: Lectura MLX es NaN. Intentando reconectar...");
+      Serial1.println("ERROR: Lectura MLX. Intentando reconectar...");
       if (!restartMLX()) {
         Serial1.println("Fallo al reconectar. Reiniciando...");
         delay(500);

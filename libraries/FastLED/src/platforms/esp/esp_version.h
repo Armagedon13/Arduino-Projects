@@ -3,6 +3,10 @@
 #else
 // Older esp toolchains don't have this header, so we define it here.
 
+// TODO - test if this breaks anything.
+#if __has_include("sdkconfig.h")
+#include "sdkconfig.h"
+#endif
 
 #ifndef ESP_IDF_VERSION_MAJOR
 #define ESP_IDF_VERSION_MAJOR 3
@@ -22,6 +26,10 @@
 #define ESP_IDF_VERSION  ESP_IDF_VERSION_VAL(ESP_IDF_VERSION_MAJOR, \
                                              ESP_IDF_VERSION_MINOR, \
                                              ESP_IDF_VERSION_PATCH)
+
+#define ESP_IDF_VERSION_4_OR_HIGHER \
+    (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 0, 0))
+
 #endif
 #endif
 

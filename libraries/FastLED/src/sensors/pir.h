@@ -16,39 +16,40 @@ namespace fl {
 // For best results set the PIR to maximum sensitive and minimum delay time before retrigger.
 // Instantiating this class will create a ui UIButton when
 // compiling using the FastLED web compiler.
-class Pir {
+class PirLowLevel {
   public:
-    Pir(int pin, const char* button_name = nullptr);
+    PirLowLevel(int pin);
     bool detect();
     operator bool() { return detect(); }
 
   private:
-    UIButton mButton;
+
     DigitalPin mPin;
 };
 
-// An advanced PIR that incorporates time to allow for latching and transitions fx. This is useful
+// An passive infrared sensor that incorporates time to allow for latching and transitions fx. This is useful
 // for detecting motion and the increasing the brightness in response to motion.
 // Example:
 //   #define PIR_LATCH_MS 15000  // how long to keep the PIR sensor active after a trigger
 //   #define PIR_RISING_TIME 1000  // how long to fade in the PIR sensor
 //   #define PIR_FALLING_TIME 1000  // how long to fade out the PIR sensor
-//   PirAdvanced pir(PIN_PIR, PIR_LATCH_MS, PIR_RISING_TIME, PIR_FALLING_TIME);
+//   Pir pir(PIN_PIR, PIR_LATCH_MS, PIR_RISING_TIME, PIR_FALLING_TIME);
 //   void loop() {
 //      uint8_t bri = pir.transition(millis());
 //      FastLED.setBrightness(bri * brightness.as<float>());
 //   }
 
-class PirAdvanced {
+class Pir {
 public:
     /// @param pin         GPIO pin for PIR sensor
     /// @param latchMs     total active time (ms)
     /// @param risingTime  ramp‑up duration (ms)
     /// @param fallingTime ramp‑down duration (ms)
-    PirAdvanced(int pin,
+    Pir(int pin,
                 uint32_t latchMs     = 5000,
                 uint32_t risingTime  = 1000,
-                uint32_t fallingTime = 1000);
+                uint32_t fallingTime = 1000,
+                const char* button_name = nullptr);
 
     /// Returns true if the PIR is “latched on” (within latchMs of last trigger).
     bool detect(uint32_t now);
@@ -64,9 +65,11 @@ public:
     void activate(uint32_t now) { mRamp.trigger(now); }
 
 private:
-    Pir        mPir;
+    PirLowLevel        mPir;
     TimeRamp  mRamp;
     bool       mLastState = false;
+    UIButton mButton;
+    
 };
 
 } // namespace fl

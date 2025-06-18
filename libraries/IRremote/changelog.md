@@ -2,8 +2,18 @@
 The latest version may not be released!
 See also the commit log at github: https://github.com/Arduino-IRremote/Arduino-IRremote/commits/master
 
+# 4.4.2
+- Support for SAMD51 timer3 if timer 5 is not available (Adafruit ItsyBitsy M4).
+- attachInterrupt() on SAMD has a different semantic :-(. See: https://www.arduino.cc/reference/tr/language/functions/external-interrupts/attachinterrupt/.
+- Fixed overflow handling.
+- Improved repeat detection for DistanceWidthProtocol.
+- Print of IR frame duration in printIRResultShort();
+- PulseDistanceWidthProtocolConstants now in PROGMEM, this saves 190 bytes RAM for unit test.
+- Support for PROGMEM PulseDistanceWidthProtocol data.
+- Support duplicated 8 bit address for sendSamsungLG().
+
 # 4.4.1
-- Support for ESP 3.0 by akellai.
+- Support for ESP core 3.x by akellai.
 - restartTimer() now uses variable sMicrosAtLastStopTimer to keep track of uncounted ticks between stopTimer() and restartTimer().
 - Removed functions addTicksToInternalTickCounter() and addMicrosToInternalTickCounter(), which were added in 4.1.0.
 - Version 2.2.0 of TinyIR with new TinyReceiverDecode() function to be used as drop in for IrReceiver.decode().
@@ -91,7 +101,7 @@ See also the commit log at github: https://github.com/Arduino-IRremote/Arduino-I
 - Introduced common structure PulseDistanceWidthProtocolConstants.
 - Where possible, changed all send and decode functions to use PulseDistanceWidthProtocolConstants.
 - Improved MSB/LSB handling
-- New convenience fuctions bitreverse32Bit() and bitreverseOneByte().
+- New convenience functions bitreverse32Bit() and bitreverseOneByte().
 - Improved Magiquest protocol.
 - Fix for #1028 - Prevent long delay caused by overflow when frame duration < repeat period - Thanks to Stephen Humphries!
 - Support for ATtiny816 - Thanks to elockman.
@@ -303,7 +313,7 @@ See also the commit log at github: https://github.com/Arduino-IRremote/Arduino-I
 - Corrected keywords.txt.
 - BoseWave protocol added PR #690.
 - Formatting comply to the new stylesheet.
-- Renamed "boarddefs.h" [ISSUE #375](https://github.com/Arduino-IRremote/Arduino-IRremote/issues/375).
+- Renamed "boarddefs.h".
 - Renamed `SEND_PIN` to `IR_SEND_PIN`.
 - Renamed state macros.
 - Enabled `DUTY_CYCLE` for send signal.

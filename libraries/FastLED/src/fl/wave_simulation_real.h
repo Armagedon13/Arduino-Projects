@@ -13,6 +13,7 @@ Based on works and code by Shawn Silverman.
 #include "fl/math_macros.h" // if needed for MAX/MIN macros
 #include "fl/namespace.h"
 #include "fl/scoped_ptr.h"
+#include "fl/vector.h"
 #include "fl/warn.h"
 
 #include "fl/ptr.h"
@@ -57,6 +58,7 @@ class WaveSimulation1D_Real {
 
     bool getHalfDuplex() const { return mHalfDuplex; }
 
+
     // Get the simulation value at the inner grid cell x (converted to float in
     // the range [-1.0, 1.0]).
     float getf(size_t x) const;
@@ -99,14 +101,15 @@ class WaveSimulation1D_Real {
     uint32_t length; // Length of the inner simulation grid.
     // Two grids stored in fixed Q15 format, each with length+2 entries
     // (including boundary cells).
-    fl::scoped_array<int16_t> grid1;
-    fl::scoped_array<int16_t> grid2;
+    fl::vector<int16_t> grid1;
+    fl::vector<int16_t> grid2;
     size_t whichGrid; // Indicates the active grid (0 or 1).
 
     int16_t mCourantSq; // Simulation speed (courant squared) stored in Q15.
     int mDampenening; // Dampening exponent (damping factor = 2^(mDampenening)).
     bool mHalfDuplex =
         true; // Flag to restrict values to positive range during update.
+
 };
 
 class WaveSimulation2D_Real {
@@ -163,6 +166,8 @@ class WaveSimulation2D_Real {
         }
     }
 
+    void setXCylindrical(bool on) { mXCylindrical = on; }
+
     // Check if (x,y) is within the inner grid.
     bool has(size_t x, size_t y) const;
 
@@ -189,8 +194,8 @@ class WaveSimulation2D_Real {
     uint32_t stride; // Row length (width + 2 for the borders).
 
     // Two separate grids stored in fixed Q15 format.
-    fl::scoped_array<int16_t> grid1;
-    fl::scoped_array<int16_t> grid2;
+    fl::vector<int16_t, fl::allocator_psram<int16_t>> grid1;
+    fl::vector<int16_t, fl::allocator_psram<int16_t>> grid2;
 
     size_t whichGrid; // Indicates the active grid (0 or 1).
 
@@ -198,6 +203,7 @@ class WaveSimulation2D_Real {
     int mDampening;     // Dampening exponent; used as 2^(dampening).
     bool mHalfDuplex =
         true; // Flag to restrict values to positive range during update.
+    bool mXCylindrical = false; // Default to non-cylindrical mode
 };
 
 } // namespace fl

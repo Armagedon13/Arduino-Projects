@@ -1,8 +1,6 @@
 FastLED Library
 ===========
 
-
-
 [![arduino-library-badge](https://www.ardu-badge.com/badge/FastLED.svg)](https://www.ardu-badge.com/FastLED)
 [![build status](https://github.com/FastLED/FastLED/workflows/build/badge.svg)](https://github.com/FastLED/FastLED/actions/workflows/build.yml)
 [![unit tests](https://github.com/FastLED/FastLED/actions/workflows/build_unit_test.yml/badge.svg)](https://github.com/FastLED/FastLED/actions/workflows/build_unit_test.yml)
@@ -13,6 +11,8 @@ FastLED Library
 Want to control a strip of leds? Or control 10's of thousands? FastLED has your back.
 
 FastLED is a robust and massively parallel-led driver for Arduino, Esp32, RaspberryPi,  Atmega, Teensy, Uno, Apollo3 Arm and more. Also runs on dirt cheap sub $1 devices, due to it's incredibly small compile size. High end devices can drive upto ~30k LEDS (Teensy) and ~20k on ESP32. Supports nearly every single LED chipset in existence. Background rendering (ESP32/Teensy/RaspberriPi) means you can respond to user input while the leds render. FastLED is the third [most popular library on Arduino](https://docs.arduino.cc/libraries/).
+
+FastLED has recently begun to evolve. While before the FastLED codebase was just a highly compatible cross platform LED driver, now it is becoming a cross platform way to generate visualizers that run on AVR, esp32, teensy, Rasperri PI etc
 
 ## Documentation
 
@@ -73,10 +73,17 @@ For more examples, see this [link](examples). Web compiled [examples](https://za
 
 ## New in 3.9.16: WaveFx / Multi Layer Compositing / Time-based animation control
 
-https://github.com/user-attachments/assets/156f77c6-9f95-4787-b296-70b882f399dd
+Video:
 
+https://github.com/user-attachments/assets/9155124b-a93e-4317-b272-8bacc1b9c3a8
 
-  * [FxWave2d](https://github.com/FastLED/FastLED/blob/master/examples/FxWave2d/FxWave2d.ino)
+#### Major release for tech-artists!
+
+Lots of improvements in this release, read the full [change list here](https://github.com/FastLED/FastLED/releases/tag/3.9.16)
+
+#### Links
+
+  * This demo -> [FxWave2d](https://github.com/FastLED/FastLED/blob/master/examples/FxWave2d/FxWave2d.ino)
     * [Wave Simulation Library](https://github.com/FastLED/FastLED/blob/master/src/fl/wave_simulation.h)
   * [FireCylinder](https://github.com/FastLED/FastLED/blob/master/examples/FireCylinder/FireCylinder.ino)
     * Wraps around so that (0,y) ~= (width-1,y)
@@ -101,10 +108,16 @@ https://github.com/user-attachments/assets/156f77c6-9f95-4787-b296-70b882f399dd
 
 ![perpetualmaniac_an_led_display_in_a_room_lots_of_refaction_of_t_eb7c170a-7b2c-404a-b114-d33794b4954b](https://github.com/user-attachments/assets/982571fc-9b8d-4e58-93be-5bed76a0c53d)
 
-*Note some users find that newer versions of the ESP32 arduino core (3.10) don't work very well, but older versions do, see [issue 1903](https://github.com/FastLED/FastLED/issues/1903)
+*Note some users find that newer versions of the ESP32 Arduino core (3.10) don't work very well, but older versions do, see [issue 1903](https://github.com/FastLED/FastLED/issues/1903)
 
-## New in 3.9.8 - Massive Teensy 4.1 & 4.0 LED output
+## New in 3.9.8 - Massive Teensy 4.1 & 4.0 WS2812 LED output
+
+  * *Teensy 4.1: 50 parallel pins*
+  * *Teensy 4.0: 42 parallel pins*
+
 ![New Project](https://github.com/user-attachments/assets/79dc2801-5161-4d5a-90a2-0126403e215f)
+
+
 
 
 ## New in 3.9.2 - Overclocking of WS2812
@@ -205,6 +218,8 @@ Update: max overclock has been reported at +70%: https://www.reddit.com/r/FastLE
 
 [![rp2350](https://github.com/FastLED/FastLED/actions/workflows/build_rp2350.yml/badge.svg)](https://github.com/FastLED/FastLED/actions/workflows/build_rp2350.yml)
 
+[![rp2350B SparkfunXRP](https://github.com/FastLED/FastLED/actions/workflows/build_rp2350B.yml/badge.svg)](https://github.com/FastLED/FastLED/actions/workflows/build_rp2350B.yml)
+
 
 ### Esp
 
@@ -291,7 +306,7 @@ https://github.com/FastLED/PlatformIO-Starter
 
 Some of the new processors can drive many many WS2812 strips in parallel. 
 
-## Stock Setups
+# Leader Boards: Stock Setups
 
 ### Teensy 4.0/4.1
 

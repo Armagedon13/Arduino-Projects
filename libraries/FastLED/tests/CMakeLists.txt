@@ -9,6 +9,14 @@ project(FastLED_Tests)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Force creation of thin archives (instead of full .a files) only for non apple builds
+if(NOT APPLE)
+    set(CMAKE_CXX_ARCHIVE_CREATE "<CMAKE_AR> rcT <TARGET> <OBJECTS>")
+    set(CMAKE_CXX_ARCHIVE_APPEND "<CMAKE_AR> rT <TARGET> <OBJECTS>")
+    set(CMAKE_CXX_ARCHIVE_FINISH "<CMAKE_RANLIB> <TARGET>")
+    message(STATUS "Using thin archives for Clang build")
+endif()
+
 # Enable parallel compilation
 include(ProcessorCount)
 ProcessorCount(CPU_COUNT)
@@ -57,7 +65,6 @@ set(COMMON_COMPILE_FLAGS
     -fno-omit-frame-pointer
     -O0
     -fno-inline
-    -Werror=suggest-override
     -Werror=return-type
     -Werror=missing-declarations
     -Werror=redundant-decls
@@ -69,24 +76,29 @@ set(COMMON_COMPILE_FLAGS
     -Werror=implicit-fallthrough
     -Werror=missing-include-dirs
     -Werror=date-time
-    -Werror=non-virtual-dtor
-    -Werror=reorder
-    -Werror=sign-compare
-    -Werror=float-equal
-    #-Werror=conversion
-    -Werror=switch-enum
-    #-Werror=switch-default
     -Werror=unused-parameter
     -Werror=unused-variable
     -Werror=unused-value
     -Werror=cast-align
     -DFASTLED_FIVE_BIT_HD_GAMMA_FUNCTION_2_8
+    -Wno-comment
     # ignore Arduino/PlatformIO-specific PROGMEM macro
     -DPROGMEM=
 )
 
+# C++-specific compiler flags
+set(CXX_SPECIFIC_FLAGS
+    -Werror=suggest-override
+    -Werror=non-virtual-dtor
+    -Werror=reorder
+    -Werror=sign-compare
+    -Werror=float-equal
+    -Werror=mismatched-tags
+    -Werror=switch-enum
+)
+
 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-    list(APPEND COMMON_COMPILE_FLAGS -Werror=self-assign -Werror=infinite-recursion -Werror=extra-tokens)
+    list(APPEND CXX_SPECIFIC_FLAGS -Werror=self-assign -Werror=infinite-recursion -Werror=extra-tokens -Werror=unused-private-field -Wglobal-constructors -Werror=global-constructors)
 endif()
 
 
@@ -99,7 +111,6 @@ set(UNIT_TEST_COMPILE_FLAGS
     -ggdb
     -fno-omit-frame-pointer
     -O0
-    -Werror=suggest-override
     -Werror=return-type
     -Werror=missing-declarations
     #-Werror=redundant-decls
@@ -111,13 +122,6 @@ set(UNIT_TEST_COMPILE_FLAGS
     #-Werror=implicit-fallthrough
     #-Werror=missing-include-dirs
     -Werror=date-time
-    -Werror=non-virtual-dtor
-    #-Werror=reorder
-    #-Werror=sign-compare
-    #-Werror=float-equal
-    #-Werror=conversion
-    -Werror=switch-enum
-    #-Werror=switch-default
     #-Werror=unused-parameter
     #-Werror=unused-variable
     #-Werror=unused-value
@@ -125,6 +129,17 @@ set(UNIT_TEST_COMPILE_FLAGS
     # Not supported in gcc.
     #-Werror=infinite-recursion
     #-v
+    -Wno-comment
+)
+
+set(UNIT_TEST_CXX_FLAGS
+    -Werror=suggest-override
+    -Werror=non-virtual-dtor
+    -Werror=switch-enum
+    #-Werror=reorder
+    #-Werror=sign-compare
+    #-Werror=float-equal
+    #-Werror=conversion
 )
 
 set(COMMON_COMPILE_DEFINITIONS
@@ -139,6 +154,7 @@ set(COMMON_COMPILE_DEFINITIONS
     _GLIBCXX_DEBUG
     _GLIBCXX_DEBUG_PEDANTIC
 )
+
 
 # Set output directories
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/.build/lib)
@@ -177,6 +193,13 @@ endif()
 # Enable testing
 enable_testing()
 
+# Create doctest main library
+add_library(doctest_main STATIC doctest_main.cpp)
+target_include_directories(doctest_main PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_options(doctest_main PRIVATE ${UNIT_TEST_COMPILE_FLAGS})
+target_compile_options(doctest_main PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${UNIT_TEST_CXX_FLAGS}>)
+target_compile_definitions(doctest_main PRIVATE ${COMMON_COMPILE_DEFINITIONS})
+
 # Find all test source files
 file(GLOB TEST_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/test_*.cpp")
 
@@ -187,7 +210,28 @@ file(GLOB TEST_BINARIES "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/test_*${CMAKE_EXECUTA
 foreach(TEST_SOURCE ${TEST_SOURCES})
     get_filename_component(TEST_NAME ${TEST_SOURCE} NAME_WE)
     add_executable(${TEST_NAME} ${TEST_SOURCE})
-    target_link_libraries(${TEST_NAME} fastled)
+    target_link_libraries(${TEST_NAME} fastled doctest_main)
+    
+    # Set the correct subsystem for Windows
+    if(WIN32)
+        if(MSVC)
+            set_target_properties(${TEST_NAME} PROPERTIES
+                WIN32_EXECUTABLE FALSE
+                LINK_FLAGS "/SUBSYSTEM:CONSOLE")
+        else()
+            # For MinGW/Clang on Windows
+            if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+                set_target_properties(${TEST_NAME} PROPERTIES
+                    WIN32_EXECUTABLE FALSE
+                    LINK_FLAGS "-Xlinker /subsystem:console")
+            else()
+                set_target_properties(${TEST_NAME} PROPERTIES
+                    WIN32_EXECUTABLE FALSE)
+            endif()
+        endif()
+    endif()
+    # Add C++-specific flags only for C++ files
+    target_compile_options(fastled PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${CXX_SPECIFIC_FLAGS}>)
     if(USE_LIBUNWIND)
         target_link_libraries(${TEST_NAME} ${LIBUNWIND_LIBRARIES})
     endif()
@@ -197,10 +241,14 @@ foreach(TEST_SOURCE ${TEST_SOURCES})
         CXX_STANDARD_REQUIRED ON
     )
     # Add static linking flags and debug flags for test executables
-    if(NOT APPLE)
+    if(NOT APPLE AND NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
         target_link_options(${TEST_NAME} PRIVATE -static-libgcc -static-libstdc++)
     endif()
     target_compile_options(${TEST_NAME} PRIVATE ${UNIT_TEST_COMPILE_FLAGS})
+    # Add C++-specific flags only for C++ files
+    target_compile_options(${TEST_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${UNIT_TEST_CXX_FLAGS}>)
+    # Add C++-specific flags only for C++ files
+    target_compile_options(${TEST_NAME} PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${UNIT_TEST_CXX_FLAGS}>)
     target_compile_definitions(${TEST_NAME} PRIVATE 
         ${COMMON_COMPILE_DEFINITIONS}
         $<$<BOOL:${USE_LIBUNWIND}>:USE_LIBUNWIND>

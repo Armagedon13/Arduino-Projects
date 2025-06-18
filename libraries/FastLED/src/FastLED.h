@@ -16,15 +16,24 @@
 /// * 1 digit for the major version
 /// * 3 digits for the minor version
 /// * 3 digits for the patch version
-#define FASTLED_VERSION 3009016
+#define FASTLED_VERSION 3009020
 #ifndef FASTLED_INTERNAL
 #  ifdef  FASTLED_SHOW_VERSION
 #    ifdef FASTLED_HAS_PRAGMA_MESSAGE
-#      pragma message "FastLED version 3.009.016"
+#      pragma message "FastLED version 3.009.020"
 #    else
-#      warning FastLED version 3.009.016  (Not really a warning, just telling you here.)
+#      warning FastLED version 3.009.020  (Not really a warning, just telling you here.)
 #    endif
 #  endif
+#endif
+
+
+#if !defined(FASTLED_FAKE_SPI_FORWARDS_TO_FAKE_CLOCKLESS)
+#if defined(__EMSCRIPTEN__)
+#define FASTLED_FAKE_SPI_FORWARDS_TO_FAKE_CLOCKLESS 1
+#else
+#define FASTLED_FAKE_SPI_FORWARDS_TO_FAKE_CLOCKLESS 0
+#endif
 #endif
 
 #ifndef __PROG_TYPES_COMPAT__
@@ -32,6 +41,12 @@
 /// @note These typedefs are now deprecated!
 /// @see https://www.nongnu.org/avr-libc/user-manual/group__avr__pgmspace.html
 #define __PROG_TYPES_COMPAT__
+#endif
+
+#ifdef __EMSCRIPTEN__
+#include "platforms/wasm/js.h"
+#include "platforms/wasm/led_sysdefs_wasm.h"
+#include "platforms/wasm/compiler/Arduino.h"
 #endif
 
 #ifdef SmartMatrix_h
@@ -83,6 +98,8 @@
 #include "fastspi.h"
 #include "chipsets.h"
 #include "fl/engine_events.h"
+
+#include "fl/leds.h"
 
 FASTLED_NAMESPACE_BEGIN
 
@@ -449,6 +466,33 @@ public:
 	_FL_MAP_CLOCKED_CHIPSET(SK9822HD, SK9822ControllerHD)
 
 
+	#if FASTLED_FAKE_SPI_FORWARDS_TO_FAKE_CLOCKLESS
+	/// Stubbed out platforms have unique challenges in faking out the SPI based controllers.
+	/// Therefore for these platforms we will always delegate to the WS2812 clockless controller.
+	/// This is fine because the clockless controllers on the stubbed out platforms are fake anyways.
+	template<ESPIChipsets CHIPSET, uint8_t DATA_PIN, uint8_t CLOCK_PIN, EOrder RGB_ORDER, uint32_t SPI_DATA_RATE > CLEDController &addLeds(struct CRGB *data, int nLedsOrOffset, int nLedsIfOffset = 0) {
+		// Instantiate the controller using ClockedChipsetHelper
+		// Always USE WS2812 clockless controller since it's the common path.
+		return addLeds<WS2812, DATA_PIN, RGB_ORDER>(data, nLedsOrOffset, nLedsIfOffset);
+	}
+
+	/// Add an SPI based CLEDController instance to the world.
+	template<ESPIChipsets CHIPSET, uint8_t DATA_PIN, uint8_t CLOCK_PIN > static CLEDController &addLeds(struct CRGB *data, int nLedsOrOffset, int nLedsIfOffset = 0) {
+		// Always USE WS2812 clockless controller since it's the common path.
+		return addLeds<WS2812, DATA_PIN>(data, nLedsOrOffset, nLedsIfOffset);
+	}
+
+
+	// The addLeds function using ChipsetHelper
+	template<ESPIChipsets CHIPSET, uint8_t DATA_PIN, uint8_t CLOCK_PIN, EOrder RGB_ORDER>
+	CLEDController& addLeds(struct CRGB* data, int nLedsOrOffset, int nLedsIfOffset = 0) {
+		// Always USE WS2812 clockless controller since it's the common path.
+		return addLeds<WS2812, DATA_PIN, RGB_ORDER>(data, nLedsOrOffset, nLedsIfOffset);
+	}
+
+	#else
+
+
 	/// Add an SPI based CLEDController instance to the world.
 	template<ESPIChipsets CHIPSET, uint8_t DATA_PIN, uint8_t CLOCK_PIN, EOrder RGB_ORDER, uint32_t SPI_DATA_RATE > CLEDController &addLeds(struct CRGB *data, int nLedsOrOffset, int nLedsIfOffset = 0) {
 		// Instantiate the controller using ClockedChipsetHelper
@@ -478,6 +522,7 @@ public:
 		static ControllerTypeWithOrder c;
 		return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset);
 	}
+	#endif
 
 
 #ifdef SPI_DATA
@@ -537,6 +582,12 @@ public:
 	static CLEDController &addLeds(struct CRGB *data, int nLedsOrOffset, int nLedsIfOffset = 0) {
 		static CHIPSET<DATA_PIN> c;
 		return addLeds(&c, data, nLedsOrOffset, nLedsIfOffset);
+	}
+
+	template<template<uint8_t DATA_PIN> class CHIPSET, uint8_t DATA_PIN>
+	static CLEDController &addLeds(class fl::Leds& leds, int nLedsOrOffset, int nLedsIfOffset = 0) {
+		CRGB* rgb = leds;
+		return addLeds<CHIPSET, DATA_PIN>(rgb, nLedsOrOffset, nLedsIfOffset);
 	}
 
 #if defined(__FASTLED_HAS_FIBCC) && (__FASTLED_HAS_FIBCC == 1)
@@ -744,6 +795,9 @@ public:
 	/// Update all our controllers with the current led colors
 	void show() { show(m_Scale); }
 
+	// Called automatically at the end of show().
+	void onEndFrame();
+
 	/// Clear the leds, wiping the local array of data. Optionally you can also
 	/// send the cleared data to the LEDs.
 	/// @param writeData whether or not to write out to the leds as well
@@ -843,21 +897,74 @@ FASTLED_NAMESPACE_END
 
 #endif
 
-#ifdef FASTLED_UI
-// As a convenience, include the UI headers and bring them into the global namespace
-#include "fl/ui.h"
-#include "fl/xymap.h"
-using fl::UIButton;
+
+/////////////////////////// Convenience includes for sketches ///////////////////////////
+
+#if !defined(FASTLED_INTERNAL) && !defined(FASTLED_LEAN_AND_MEAN)
+
+#include "fl/str.h"   // Awesome Str class that has stack allocation and heap overflow, copy on write.
+#include "fl/xymap.h"  // XYMap class for mapping 2D coordinates on seperintine matrices.
+
+#include "fl/clamp.h"  // fl::clamp(value, min, max)
+#include "fl/map_range.h"  // fl::map_range(value, in_min, in_max, out_min, out_max)
+
+#include "fl/warn.h"  // FASTLED_WARN("time now: " << millis()), FASTLED_WARN_IF(condition, "time now: " << millis());"
+#include "fl/assert.h"  // FASTLED_ASSERT(condition, "message");
+#include "fl/unused.h"  // FASTLED_UNUSED(variable), for strict compiler settings.
+
+// provides:
+//   fl::vector<T> - Standard heap vector
+//   fl::vector_inlined<T,N> - Allocate on stack N elements, then overflow to heap vector.
+//   fl::vector_fixed<T,N> - Stack allocated fixed size vector, elements will fail to add when full.
+#include "fl/vector.h"
+
+// Flexible callbacks in the style of std::function.
+#include "fl/function.h"
+
+// Clears the led data and other objects.
+// CRGB leds[NUM_LEDS];
+// fl::clear(leds)
+#include "fl/clear.h"
+
+// Leds has a CRGB block and an XYMap
+#include "fl/leds.h"
+
+#include "fl/ui.h"  // Provides UIButton, UISlider, UICheckbox, UINumberField and UITitle, UIDescription.
+using fl::UIButton;  // These names are unique enough that we don't need to namespace them
 using fl::UICheckbox;
 using fl::UINumberField;
 using fl::UISlider;
 using fl::XYMap;
 #define FASTLED_TITLE(text) fl::UITitle g_title(text)
 #define FASTLED_DESCRIPTION(text) fl::UIDescription g_description(text)
-#endif // FASTLED_UI
 
+
+#endif // FASTLED_INTERNAL && !FASTLED_LEAN_AND_MEAN
+
+
+// Auto namespace if necessary.
 #if defined(FASTLED_FORCE_USE_NAMESPACE) && FASTLED_FORCE_USE_NAMESPACE==1
 using namespace fl;
 #endif
 
 
+// Experimental: loop() hijacking.
+//
+// EngineEvents requires that FastLED.show() be invoked.
+// If the user skips that then certain updates will be skipped.
+//
+// Right now this isn't a big deal, but in the future it could be.
+//
+// Therefore this experiment is done so that this loop() hijack trick
+// can be used to insert code at the start of every loop(), such as a
+// scoped object that forces a begin and end frame event.
+//
+// It's possible to hijack the loop() via a macro so that
+// extra code can be injected at the start of every frame.
+
+#if 0
+#define loop() \
+     real_loop(); \
+     void loop() { FASTLED_WARN("hijacked the loop"); real_loop(); } \
+     void real_loop()
+#endif

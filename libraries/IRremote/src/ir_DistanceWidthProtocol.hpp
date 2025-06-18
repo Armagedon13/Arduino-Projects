@@ -34,7 +34,7 @@
  ************************************************************************************
  * MIT License
  *
- * Copyright (c) 2022-2024 Armin Joachimsmeyer
+ * Copyright (c) 2022-2025 Armin Joachimsmeyer
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -62,7 +62,7 @@
 #define DISTANCE_WIDTH_MAXIMUM_REPEAT_DISTANCE_MICROS       100000 // 100 ms, bit it is just a guess
 #endif
 
-#if defined(DEBUG) && !defined(LOCAL_DEBUG)
+#if defined(DEBUG)
 #define LOCAL_DEBUG
 #else
 //#define LOCAL_DEBUG // This enables debug output only for this file
@@ -434,8 +434,12 @@ bool IRrecv::decodeDistanceWidth() {
     decodedIRData.flags = IRDATA_FLAGS_IS_MSB_FIRST;
 #endif
 
-    // Check for repeat
-    checkForRepeatSpaceTicksAndSetFlag(DISTANCE_WIDTH_MAXIMUM_REPEAT_DISTANCE_MICROS / MICROS_PER_TICK);
+    // Check for repeat. Check also for equality of last DecodedRawData.
+    if (decodedIRData.initialGapTicks < DISTANCE_WIDTH_MAXIMUM_REPEAT_DISTANCE_MICROS / MICROS_PER_TICK
+            && decodedIRData.decodedRawDataArray[tNumberOfAdditionalArrayValues] == lastDecodedRawData) {
+        decodedIRData.flags |= IRDATA_FLAGS_IS_REPEAT;
+    }
+    lastDecodedRawData = decodedIRData.decodedRawData;
 
     /*
      * Store timing data to reproduce frame for sending

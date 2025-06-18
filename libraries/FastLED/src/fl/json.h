@@ -1,6 +1,5 @@
 #pragma once
 
-
 #ifndef FASTLED_ENABLE_JSON
 #ifdef __AVR__
 #define FASTLED_ENABLE_JSON 0
@@ -20,10 +19,13 @@ class Str;
 #if !FASTLED_ENABLE_JSON
 class JsonDocument {};
 #else
-class JsonDocument: public ::FLArduinoJson::JsonDocument {};
+class JsonDocument : public ::FLArduinoJson::JsonDocument {};
 #endif
 
-bool parseJson(const char* json, JsonDocument* doc, Str* error = nullptr);
-void toJson(const JsonDocument& doc, Str* jsonBuffer);
+// Parses a JSON string into a JsonDocument.
+bool parseJson(const char *json, JsonDocument *doc, Str *error = nullptr);
+
+// Serializes a JsonDocument to a string.
+void toJson(const JsonDocument &doc, Str *jsonBuffer);
 
 } // namespace fl

@@ -1,3 +1,5 @@
+#pragma once
+
 #ifndef __INC_FASTPIN_H
 #define __INC_FASTPIN_H
 
@@ -74,6 +76,8 @@ public:
 
 	/// Set the pin mode as `INPUT`
 	inline void setInput() { pinMode(mPin, INPUT); }
+
+	inline void setInputPullup() { pinMode(mPin, INPUT_PULLUP); }
 
 	/// Set the pin state to `HIGH`
 	inline void hi() __attribute__ ((always_inline)) { *mPort |= mPinMask; }
@@ -164,6 +168,7 @@ public:
 
 	inline void setOutput() { /* TODO: Set pin output */ }
 	inline void setInput() { /* TODO: Set pin input */ }
+	inline void setInputPullup() { /* TODO: Set pin input pullup */ }
 
 	inline void hi() __attribute__ ((always_inline)) { *mPort |= mPinMask; }
 	inline void lo() __attribute__ ((always_inline)) { *mPort &= ~mPinMask; }

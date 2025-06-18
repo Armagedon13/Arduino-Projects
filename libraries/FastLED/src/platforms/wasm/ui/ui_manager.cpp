@@ -1,17 +1,17 @@
 #ifdef __EMSCRIPTEN__
 
 #include <emscripten.h>
+#include <emscripten/bind.h>
+#include <emscripten/emscripten.h> // Include Emscripten headers
+#include <emscripten/html5.h>
 
 #include <sstream>
 #include <vector>
 
-
-
-#include "ui_manager.h"
-#include "fl/map.h"
 #include "fl/json.h"
+#include "fl/map.h"
 #include "fl/namespace.h"
-
+#include "ui_manager.h"
 
 #include <emscripten.h>
 #include <sstream>
@@ -19,9 +19,7 @@
 
 #include "fl/namespace.h"
 
-using namespace fl;
-
-FASTLED_NAMESPACE_BEGIN
+namespace fl {
 
 void jsUiManager::addComponent(WeakPtr<jsUiInternal> component) {
     std::lock_guard<std::mutex> lock(instance().mMutex);
@@ -107,6 +105,6 @@ EMSCRIPTEN_BINDINGS(js_interface) {
                          &jsUiManager::jsUpdateUiComponents);
 }
 
-FASTLED_NAMESPACE_END
+} // namespace fl
 
 #endif // __EMSCRIPTEN__

@@ -19,13 +19,13 @@ VideoImpl::VideoImpl(size_t pixelsPerFrame, float fpsVideo,
 
 void VideoImpl::pause(uint32_t now) {
     if (!mTime) {
-        mTime = TimeScalePtr::New(now);
+        mTime = TimeWarpPtr::New(now);
     }
     mTime->pause(now);
 }
 void VideoImpl::resume(uint32_t now) {
     if (!mTime) {
-        mTime = TimeScalePtr::New(now);
+        mTime = TimeWarpPtr::New(now);
     }
     mTime->resume(now);
 }
@@ -33,7 +33,7 @@ void VideoImpl::resume(uint32_t now) {
 void VideoImpl::setTimeScale(float timeScale) {
     mTimeScale = timeScale;
     if (mTime) {
-        mTime->setScale(timeScale);
+        mTime->setSpeed(timeScale);
     }
 }
 
@@ -84,16 +84,17 @@ int32_t VideoImpl::durationMicros() const {
     }
     int32_t frames = mStream->framesRemaining();
     if (frames < 0) {
-        return -1;  // Stream case, duration unknown
+        return -1; // Stream case, duration unknown
     }
-    uint32_t micros_per_frame = mFrameInterpolator->getFrameTracker().microsecondsPerFrame();
-    return (frames * micros_per_frame);  // Convert to milliseconds
+    uint32_t micros_per_frame =
+        mFrameInterpolator->getFrameTracker().microsecondsPerFrame();
+    return (frames * micros_per_frame); // Convert to milliseconds
 }
 
 bool VideoImpl::draw(uint32_t now, CRGB *leds) {
     if (!mTime) {
-        mTime = TimeScalePtr::New(now);
-        mTime->setScale(mTimeScale);
+        mTime = TimeWarpPtr::New(now);
+        mTime->setSpeed(mTimeScale);
         mTime->reset(now);
     }
     now = mTime->update(now);

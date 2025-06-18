@@ -11,10 +11,11 @@
 
 #include "fl/bilinear_expansion.h"
 #include "fl/ptr.h"
+#include "fl/vector.h"
+#include "fl/xymap.h"
 #include "fx/fx2d.h"
 #include "lib8tion/random8.h"
 #include "noise.h"
-#include "fl/xymap.h"
 
 // Optimized for 2^n grid sizes in terms of both memory and performance.
 // If you are somehow running this on AVR then you probably want this if
@@ -55,7 +56,7 @@ class ScaleUp : public Fx2d {
     void noExpand(const CRGB *input, CRGB *output, uint16_t width,
                   uint16_t height);
     Fx2dPtr mDelegate;
-    fl::scoped_array<CRGB> mSurface;
+    fl::vector<CRGB, fl::allocator_psram<CRGB>> mSurface;
 };
 
 } // namespace fl

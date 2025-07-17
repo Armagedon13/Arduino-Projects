@@ -1,8 +1,9 @@
 /// @file    Overclock.ino
 /// @brief   Demonstrates how to overclock a FastLED setup
 
+#include "FastLED.h"
 
-#ifdef __AVR__
+#if !SKETCH_HAS_LOTS_OF_MEMORY
 // To effectively test the overclock feature we need
 // a large enough dataset to test against. Unfortunately
 // the avr platforms don't have enough memory so this example

@@ -8,6 +8,7 @@ FastLED Library
 [![Documentation](https://img.shields.io/badge/Docs-Doxygen-blue.svg)](http://fastled.io/docs)
 [![Reddit](https://img.shields.io/badge/reddit-/r/FastLED-orange.svg?logo=reddit)](https://www.reddit.com/r/FastLED/)
 
+
 Want to control a strip of leds? Or control 10's of thousands? FastLED has your back.
 
 FastLED is a robust and massively parallel-led driver for Arduino, Esp32, RaspberryPi,  Atmega, Teensy, Uno, Apollo3 Arm and more. Also runs on dirt cheap sub $1 devices, due to it's incredibly small compile size. High end devices can drive upto ~30k LEDS (Teensy) and ~20k on ESP32. Supports nearly every single LED chipset in existence. Background rendering (ESP32/Teensy/RaspberriPi) means you can respond to user input while the leds render. FastLED is the third [most popular library on Arduino](https://docs.arduino.cc/libraries/).
@@ -75,7 +76,11 @@ For more examples, see this [link](examples). Web compiled [examples](https://za
 
 Video:
 
-https://github.com/user-attachments/assets/9155124b-a93e-4317-b272-8bacc1b9c3a8
+
+
+https://github.com/user-attachments/assets/ff8e0432-3e0d-47cc-a444-82ce27f562af
+
+
 
 #### Major release for tech-artists!
 
@@ -247,6 +252,10 @@ Update: max overclock has been reported at +70%: https://www.reddit.com/r/FastLE
 
 
 [![esp32h2](https://github.com/FastLED/FastLED/actions/workflows/build_esp32h2.yml/badge.svg)](https://github.com/FastLED/FastLED/actions/workflows/build_esp32h2.yml)
+
+
+[![esp32p4](https://github.com/FastLED/FastLED/actions/workflows/build_esp32p4.yml/badge.svg)](https://github.com/FastLED/FastLED/actions/workflows/build_esp32p4.yml)
+
 
 *Specific features*
 

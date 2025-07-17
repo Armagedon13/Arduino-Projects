@@ -3,60 +3,40 @@
 /// The Yves ESP32_S3 I2S driver is a driver that uses the I2S peripheral on the ESP32-S3 to drive leds.
 /// Originally from: https://github.com/hpwit/I2SClockLessLedDriveresp32s3
 ///
+///
 /// This is an advanced driver. It has certain ramifications.
-///   - You probably aren't going to be able to use this in ArduinoIDE, because ArduinoIDE does not allow you to put in the necessary build flags.
-///     You will need to use PlatformIO to build this.
-///   - These flags enable PSRAM.
 ///   - Once flashed, the ESP32-S3 might NOT want to be reprogrammed again. To get around
 ///     this hold the reset button and release when the flash tool is looking for an
 ///     an upload port.
-///   - Put a delay in the setup function. This is to make it easier to flash the device.
+///   - Put a delay in the setup function. This is to make it easier to flash the device during developement.
 ///   - Serial output will mess up the DMA controller. I'm not sure why this is happening
-///     but just be aware of it. If your device suddenly stops works, remove the printfs and see if that fixes the problem.
-///   - You MUST use all the available PINS specified in this demo. Anything less than that will cause FastLED to crash.
-///   - Certain leds will turn white in debug mode. Probably has something to do with timing.
+///     but just be aware of it. If your device suddenly stops working, remove the printfs and see if that fixes the problem.
 ///
 /// Is RGBW supported? Yes.
 ///
-/// Is Overclocking supported? No.
+/// Is Overclocking supported? Yes. Use this to bend the timeings to support other WS281X variants. Fun fact, just overclock the
+/// chipset until the LED starts working.
 ///
-/// What about the new WS2812-5VB leds? Kinda. We put in a hack to add the extra wait time of 300 uS.
+/// What about the new WS2812-5VB leds? Yes, they have 250us timing.
 ///
-/// What are the advantages of using the FastLED bindings over the raw driver?
-///  - FastLED api is more user friendly since you don't have to combine all your leds into one rectangular block.
-///  - FastLED api allows you to have different sized strips which will be upscaled to the largest strip internally.
+/// Why use this?
+/// Raw YVes driver needs a perfect parallel rectacngle buffer for operation. In this code we've provided FastLED
+/// type bindings.
 ///
-/// What are the advantages of using the raw driver over the FastLED bindings?
-///  - The raw driver uses less memory because it doesn't have a frame buffer copy.
-///
+// ArduinoIDE
+//  Should already be enabled.
+//
 // PLATFORMIO BUILD FLAGS:
 // Define your platformio.ini like so:
 //
+// PlatformIO
 // [env:esp32s3]
-// platform = https://github.com/pioarduino/platform-espressif32/releases/download/51.03.04/platform-espressif32.zip
+// platform = https://github.com/pioarduino/platform-espressif32/releases/download/54.03.20/platform-espressif32.zip
 // framework = arduino
 // board = seeed_xiao_esp32s3
-// build_flags = 
-//     ${env:generic-esp.build_flags}
-//     -DBOARD_HAS_PSRAM
-//     -mfix-esp32-psram-cache-issue
-//     -mfix-esp32-psram-cache-strategy=memw
-// board_build.partitions = huge_app.csv
-//
-// Then in your setup function you are going to want to call psramInit();
-//
-// Want to get a contributor badge for FastLED? This driver has only been lightly tested.
-// There are certain open questions:
-//  - Can the pins order for the strips be changed?    (the pins can be defined arbitrarily,Tested on esp32s3, esp32duino version 3.2.0)
-//  - Are there some combination of pins that can be ommitted?
-//  - What other caveats are there?
-//
-//  If you know the answer to these questions then please submit a PR to the FastLED repo and
-//  we will update the information for the community.
 
-#include <esp_psram.h>
 
-#define FASTLED_USES_ESP32S3_I2S
+#define FASTLED_USES_ESP32S3_I2S  // Must define this before including FastLED.h
 
 #include "FastLED.h"
 #include "fl/assert.h"
@@ -65,6 +45,8 @@
 #define NUMSTRIPS 16
 #define NUM_LEDS_PER_STRIP 256
 #define NUM_LEDS (NUM_LEDS_PER_STRIP * NUMSTRIPS)
+
+// Note that you can use less strips than this.
 
 #define EXAMPLE_PIN_NUM_DATA0 19  // B0
 #define EXAMPLE_PIN_NUM_DATA1 45  // B1
@@ -84,8 +66,9 @@
 #define EXAMPLE_PIN_NUM_DATA15 18 // R4
 
 
-const bool gUseFastLEDApi = true;  // Set this to false to use the raw driver.
-
+// Users say you can use a lot less strips. Experiment around and find out!
+// Please comment at reddit.com/r/fastled and let us know if you have problems.
+// Or send us a picture of your Triumps!
 int PINS[] = {
     EXAMPLE_PIN_NUM_DATA0,
     EXAMPLE_PIN_NUM_DATA1,
@@ -105,10 +88,9 @@ int PINS[] = {
     EXAMPLE_PIN_NUM_DATA15
 };
 
-fl::InternalI2SDriver *driver = nullptr;
 CRGB leds[NUM_LEDS];
 
-void setup_i2s_using_fastled_api() {
+void setup_i2s() {
     // Note, in this case we are using contingious memory for the leds. But this is not required.
     // Each strip can be a different size and the FastLED api will upscale the smaller strips to the largest strip.
     FastLED.addLeds<WS2812, EXAMPLE_PIN_NUM_DATA0, GRB>(
@@ -159,15 +141,13 @@ void setup_i2s_using_fastled_api() {
     FastLED.addLeds<WS2812, EXAMPLE_PIN_NUM_DATA15, GRB>(
         leds + (15 * NUM_LEDS_PER_STRIP), NUM_LEDS_PER_STRIP
     );
-    FastLED.setBrightness(32);
 }
 
 
 
 void setup() {
-    psramInit(); // IMPORTANT: This is required to enable PSRAM. If you don't do this, the driver will not work.
     // put your setup code here, to run once:
-    Serial.begin(115200);
+    Serial.begin(57600);
 
     // This is used so that you can see if PSRAM is enabled. If not, we will crash in setup() or in loop().
     log_d("Total heap: %d", ESP.getHeapSize());
@@ -175,15 +155,12 @@ void setup() {
     log_d("Total PSRAM: %d", ESP.getPsramSize());  // If this prints out 0, then PSRAM is not enabled.
     log_d("Free PSRAM: %d", ESP.getFreePsram());
 
-    log_d("waiting 6 second before startup");
+    log_d("waiting 6 seconds before startup");
     delay(6000);  // The long reset time here is to make it easier to flash the device during the development process.
-    if (gUseFastLEDApi) {
-        setup_i2s_using_fastled_api();
-    } else {
-        driver = fl::InternalI2SDriver::create();
-        driver->initled((uint8_t *)leds, PINS, NUMSTRIPS, NUM_LEDS_PER_STRIP);  // Skips extra frame buffer copy.
-        driver->setBrightness(32);
-    }
+
+    setup_i2s();
+    FastLED.setBrightness(32);
+   
 }
 
 void fill_rainbow(CRGB* all_leds) {
@@ -199,10 +176,6 @@ void fill_rainbow(CRGB* all_leds) {
 
 void loop() {
     fill_rainbow(leds);
-    if (gUseFastLEDApi) {
-        FastLED.show();
-    } else {
-        FASTLED_ASSERT(driver != nullptr, "Did not expect driver to be null");
-        driver->show();
-    }
+    FastLED.show();
+    
 }

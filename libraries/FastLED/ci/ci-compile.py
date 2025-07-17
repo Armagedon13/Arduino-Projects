@@ -16,7 +16,7 @@ from ci.locked_print import locked_print
 
 HERE = Path(__file__).parent.resolve()
 
-LIBS = ["src", "ci"]
+LIBS = ["src"]
 EXTRA_LIBS = [
     "https://github.com/me-no-dev/ESPAsyncWebServer.git",
     "ArduinoOTA",
@@ -45,6 +45,7 @@ DEFAULT_BOARDS_NAMES = [
     "ATtiny1616",
     "esp32c6",
     "esp32s3",
+    "esp32p4",
     "yun",
     "digix",
     "teensy30",
@@ -69,16 +70,22 @@ OTHER_BOARDS_NAMES = [
 
 # Examples to compile.
 DEFAULT_EXAMPLES = [
+    "Animartrix",
     "Apa102",
     "Apa102HD",
     "Apa102HDOverride",
+    "Audio",
     "Blink",
     "Blur",
     "Chromancer",
     "ColorPalette",
     "ColorTemperature",
+    "Corkscrew",
+    "CompileTest",
     "Cylon",
     "DemoReel100",
+    "Downscale",
+    "FestivalStick",
     "FirstLight",
     "Fire2012",
     "Multiple/MultipleStripsInOneArray",
@@ -96,6 +103,8 @@ DEFAULT_EXAMPLES = [
     "RGBWEmulated",
     "TwinkleFox",
     "XYMatrix",
+    "FireMatrix",
+    "FireCylinder",
     "FxGfx2Video",
     "FxSdCard",
     "FxCylon",

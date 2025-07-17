@@ -8,8 +8,9 @@
 /// 3. Run the FastLED web compiler at root: `fastled`
 /// 4. When the compiler is done a web page will open.
 
+#include "FastLED.h"
 
-#ifdef __AVR__
+#if !SKETCH_HAS_LOTS_OF_MEMORY
 void setup() {
   // put your setup code here, to run once:
 }

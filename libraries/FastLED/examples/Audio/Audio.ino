@@ -2,6 +2,11 @@
 
 /*
 This demo is best viewed using the FastLED compiler.
+
+Windows/MacOS binaries: https://github.com/FastLED/FastLED/releases
+
+Python
+
 Install: pip install fastled
 Run: fastled <this sketch directory>
 This will compile and preview the sketch in the browser, and enable
@@ -10,6 +15,14 @@ all the UI elements you see below.
 
 #include <Arduino.h>
 #include <FastLED.h>
+
+#if !SKETCH_HAS_LOTS_OF_MEMORY
+// Platform does not have enough memory
+void setup() {}
+void loop() {}
+#else
+
+
 
 #include "fl/audio.h"
 #include "fl/downscale.h"
@@ -21,8 +34,10 @@ all the UI elements you see below.
 #include "fl/time_alpha.h"
 #include "fl/ui.h"
 #include "fl/xypath.h"
-#include "fx.h"
+#include "fl/unused.h"
+#include "fx_audio.h"
 #include "fx/time.h"
+
 
 // Sketch.
 #include "fl/function.h"
@@ -34,6 +49,7 @@ using namespace fl;
 #define NUM_LEDS ((WIDTH) * (HEIGHT))
 #define IS_SERPINTINE false
 #define TIME_ANIMATION 1000 // ms
+#define PIN_DATA 3
 
 UITitle title("Simple control of an xy path");
 UIDescription description("This is more of a test for new features.");
@@ -106,7 +122,7 @@ void setup() {
         audioFadeTracker.setOutputTime(value);
         FASTLED_WARN("Output time seconds: " << value);
     });
-    FastLED.addLeds<NEOPIXEL, 2>(leds, ledsXY.getTotal())
+    FastLED.addLeds<NEOPIXEL, PIN_DATA>(leds, ledsXY.getTotal())
         .setScreenMap(screenmap);
 }
 
@@ -144,10 +160,6 @@ void loop() {
     if (triggered) {
         FASTLED_WARN("Triggered");
     }
-    // fl::clear(framebuffer);
-    // fl::clear(framebuffer);
-
-    static uint32_t frame = 0;
 
     // x = pointX.as_int();
     y = HEIGHT / 2;
@@ -164,6 +176,7 @@ void loop() {
         soundLevelMeter.processBlock(sample.pcm());
         // FASTLED_WARN("")
         auto dbfs = soundLevelMeter.getDBFS();
+        FASTLED_UNUSED(dbfs);
         // FASTLED_WARN("getDBFS: " << dbfs);
         int32_t max = 0;
         for (int i = 0; i < sample.pcm().size(); ++i) {
@@ -187,6 +200,7 @@ void loop() {
 
         if (enableFFT) {
             auto max_x = fftOut.bins_raw.size() - 1;
+            FASTLED_UNUSED(max_x);
             for (int i = 0; i < fftOut.bins_raw.size(); ++i) {
                 auto x = i;
                 auto v = fftOut.bins_db[i];
@@ -232,3 +246,5 @@ void loop() {
 
     FastLED.show();
 }
+
+#endif  // __AVR__

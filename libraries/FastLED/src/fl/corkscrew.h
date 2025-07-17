@@ -4,15 +4,15 @@
  * @file corkscrew.h
  * @brief Corkscrew projection utilities
  *
- * Corkscrew projection maps from Corkscrew (θ, h) to Cylindrical cartesian (w,
- * h) space, where w = one turn of the Corkscrew. The corkscrew at (0,0) will
- * map to (0,0) in cylindrical space.
+ * You want to draw on a rectangular surface, and have it map to a GOD DAMN
+ * CORKSCREW! Well guess what, this is the file for you.
  *
- * The projection:
- * - Super samples cylindrical space?
- * - θ is normalized to [0, 1] or mapped to [0, W-1] for grid projection
- * - Uses 2x2 super sampling for better visual quality
- * - Works with XYPathRenderer's "Splat Rendering" for sub-pixel rendering
+ * Corkscrew projection maps from Corkscrew angle height, (θ, h)  to Cylindrical
+ * cartesian (w, h) space, where w = one turn of the Corkscrew. The corkscrew at
+ * (0) will map to the first index in the cylinder map at (0, 0). The last value
+ * is probly not at the max pixel value at (width - 1, height - 1), but could
+ * be.
+ *
  *
  * Inputs:
  * - Total Height of the Corkscrew in centimeters
@@ -35,6 +35,7 @@
 #include "fl/allocator.h"
 #include "fl/geometry.h"
 #include "fl/math_macros.h"
+#include "fl/pair.h"
 #include "fl/tile2x2.h"
 #include "fl/vector.h"
 
@@ -46,41 +47,43 @@ namespace fl {
  * @return The resulting cylindrical mapping.
  */
 struct CorkscrewInput {
+    float totalLength = 100;   // Total length of the corkscrew in centimeters,
+                               // set to dense 144 strips.
     float totalHeight = 23.25; // Total height of the corkscrew in centimeters
                                // for 144 densly wrapped up over 19 turns
-    float totalAngle = 19.f * 2 * PI; // Default to 19 turns
-    float offsetCircumference = 0;    // Optional offset for gap accounting
-    uint16_t numLeds = 144;           // Default to dense 144 leds.
-    bool invert = false;              // If true, reverse the mapping order
+    float totalTurns = 19.f;   // Default to 19 turns
+    float offsetCircumference = 0; // Optional offset for gap accounting
+    uint16_t numLeds = 144;        // Default to dense 144 leds.
+    bool invert = false;           // If true, reverse the mapping order
     CorkscrewInput() = default;
-    CorkscrewInput(float height, float total_angle, float offset = 0,
-                   uint16_t leds = 144, bool invertMapping = false)
-        : totalHeight(height), totalAngle(total_angle),
-          offsetCircumference(offset), numLeds(leds), invert(invertMapping) {}
+    CorkscrewInput(float total_length, float height, float total_turns,
+                   uint16_t leds, float offset = 0,
+                   bool invertMapping = false)
+        : totalLength(total_length), totalHeight(height),
+          totalTurns(total_turns), offsetCircumference(offset), numLeds(leds),
+          invert(invertMapping) {}
 };
 
-struct CorkscrewOutput {
+struct CorkscrewState {
     uint16_t width = 0;  // Width of cylindrical map (circumference of one turn)
     uint16_t height = 0; // Height of cylindrical map (total vertical segments)
     fl::vector<fl::vec2f, fl::allocator_psram<fl::vec2f>>
         mapping; // Full precision mapping from corkscrew to cylindrical
-    CorkscrewOutput() = default;
+    CorkscrewState() = default;
 
     class iterator {
-    public:
+      public:
         using value_type = vec2f;
         using difference_type = int32_t;
-        using pointer = vec2f*;
-        using reference = vec2f&;
+        using pointer = vec2f *;
+        using reference = vec2f &;
 
-        iterator(CorkscrewOutput* owner, size_t position)
+        iterator(CorkscrewState *owner, size_t position)
             : owner_(owner), position_(position) {}
 
-        vec2f& operator*() const {
-            return owner_->mapping[position_];
-        }
+        vec2f &operator*() const { return owner_->mapping[position_]; }
 
-        iterator& operator++() {
+        iterator &operator++() {
             ++position_;
             return *this;
         }
@@ -91,67 +94,82 @@ struct CorkscrewOutput {
             return temp;
         }
 
-        bool operator==(const iterator& other) const {
+        iterator &operator--() {
+            --position_;
+            return *this;
+        }
+
+        iterator operator--(int) {
+            iterator temp = *this;
+            --position_;
+            return temp;
+        }
+
+        bool operator==(const iterator &other) const {
             return position_ == other.position_;
         }
 
-        bool operator!=(const iterator& other) const {
+        bool operator!=(const iterator &other) const {
             return position_ != other.position_;
         }
 
-    private:
-        CorkscrewOutput* owner_;
+        difference_type operator-(const iterator &other) const {
+            return static_cast<difference_type>(position_) -
+                   static_cast<difference_type>(other.position_);
+        }
+
+      private:
+        CorkscrewState *owner_;
         size_t position_;
     };
 
-    iterator begin() {
-        return iterator(this, 0);
-    }
+    iterator begin() { return iterator(this, 0); }
 
-    iterator end() {
-        return iterator(this, mapping.size());
-    }
-    fl::Tile2x2_u8 at(int16_t x, int16_t y) const;
+    iterator end() { return iterator(this, mapping.size()); }
 };
 
+// Maps a Corkscrew defined by the input to a cylindrical mapping for rendering
+// a densly wrapped LED corkscrew.
 class Corkscrew {
   public:
     using Input = CorkscrewInput;
-    using Output = CorkscrewOutput;
-    using iterator = CorkscrewOutput::iterator;
+    using State = CorkscrewState;
+    using iterator = CorkscrewState::iterator;
 
     Corkscrew(const Input &input);
     Corkscrew(const Corkscrew &) = default;
+    Corkscrew(Corkscrew &&) = default;
 
-    vec2f at(uint16_t i) const;
-    // This is a splatted pixel. This is will look way better than
-    // using at(), because it uses 2x2 neighboor sampling.
-    Tile2x2_u8 at_splat(uint16_t i) const;
+    vec2f at_exact(uint16_t i) const;
+
+    // This is the future api.
+    Tile2x2_u8_wrap at_wrap(float i) const;
+
     size_t size() const;
 
-    iterator begin() {
-        return mOutput.begin();
-    }
+    iterator begin() { return mState.begin(); }
 
-    iterator end() {
-        return mOutput.end();
-    }
+    iterator end() { return mState.end(); }
 
     /// For testing
 
-    static CorkscrewOutput generateMap(const Input &input);
+    static State generateState(const Input &input);
 
-    Output& access() {
-        return mOutput;
-    }
+    State &access() { return mState; }
 
-    const Output& access() const {
-        return mOutput;
-    }
+    const State &access() const { return mState; }
+
+    int16_t cylinder_width() const { return mState.width; }
+    int16_t cylinder_height() const { return mState.height; }
 
   private:
-    Input mInput;            // The input parameters defining the corkscrew
-    CorkscrewOutput mOutput; // The resulting cylindrical mapping
+    // For internal use. Splats the pixel on the surface which
+    // extends past the width. This extended Tile2x2 is designed
+    // to be wrapped around with a Tile2x2_u8_wrap.
+    Tile2x2_u8 at_splat_extrapolate(float i) const;
+
+    Input mInput; // The input parameters defining the corkscrew
+    State mState; // The resulting cylindrical mapping
 };
 
 } // namespace fl

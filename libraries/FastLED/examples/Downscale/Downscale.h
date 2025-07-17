@@ -2,6 +2,11 @@
 
 /*
 This demo is best viewed using the FastLED compiler.
+
+Windows/MacOS binaries: https://github.com/FastLED/FastLED/releases
+
+Python
+
 Install: pip install fastled
 Run: fastled <this sketch directory>
 This will compile and preview the sketch in the browser, and enable
@@ -11,6 +16,7 @@ all the UI elements you see below.
 #include <Arduino.h>
 #include <FastLED.h>
 
+#include "fl/downscale.h"
 #include "fl/draw_visitor.h"
 #include "fl/math_macros.h"
 #include "fl/raster.h"
@@ -18,7 +24,6 @@ all the UI elements you see below.
 #include "fl/ui.h"
 #include "fl/xypath.h"
 #include "fx/time.h"
-#include "fl/bilinear_compression.h"
 
 // Sketch.
 #include "src/wave.h"
@@ -32,10 +37,11 @@ using namespace fl;
 #define TIME_ANIMATION 1000 // ms
 
 CRGB leds[NUM_LEDS];
-CRGB leds_downscaled[NUM_LEDS / 4];  // Downscaled buffer
+CRGB leds_downscaled[NUM_LEDS / 4]; // Downscaled buffer
 
 XYMap xyMap(WIDTH, HEIGHT, false);
-XYMap xyMap_Dst(WIDTH / 2, HEIGHT / 2, false); // Framebuffer is regular rectangle LED matrix.
+XYMap xyMap_Dst(WIDTH / 2, HEIGHT / 2,
+                false); // Framebuffer is regular rectangle LED matrix.
 // XYPathPtr shape = XYPath::NewRosePath(WIDTH, HEIGHT);
 
 // Speed up writing to the super sampled waveFx by writing
@@ -43,7 +49,6 @@ XYMap xyMap_Dst(WIDTH / 2, HEIGHT / 2, false); // Framebuffer is regular rectang
 
 WaveEffect wave_fx; // init in setup().
 fl::vector<XYPathPtr> shapes = CreateXYPaths(WIDTH, HEIGHT);
-
 
 XYRaster raster(WIDTH, HEIGHT);
 TimeWarp time_warp;
@@ -77,12 +82,12 @@ void setupUiCallbacks() {
     maxAnimation.onChanged(
         [](float value) { shapeProgress.set_max_clamp(maxAnimation.value()); });
 
-    trigger.onChanged([]() {
+    trigger.onClicked([]() {
         // shapeProgress.trigger(millis());
         FASTLED_WARN("Trigger pressed");
     });
-    useWaveFx.onChanged([](bool on) {
-        if (on) {
+    useWaveFx.onChanged([](fl::UICheckbox &checkbox) {
+        if (checkbox.value()) {
             FASTLED_WARN("WaveFX enabled");
         } else {
             FASTLED_WARN("WaveFX disabled");
@@ -94,7 +99,8 @@ void setup() {
     Serial.begin(115200);
     auto screenmap = xyMap.toScreenMap();
     screenmap.setDiameter(.2);
-    FastLED.addLeds<NEOPIXEL, 2>(leds, xyMap.getTotal()).setScreenMap(screenmap);
+    FastLED.addLeds<NEOPIXEL, 2>(leds, xyMap.getTotal())
+        .setScreenMap(screenmap);
     auto screenmap2 = xyMap_Dst.toScreenMap();
     screenmap.setDiameter(.5);
     screenmap2.addOffsetY(-HEIGHT / 2);
@@ -142,9 +148,6 @@ void loop() {
         s_prev_alpha = curr_alpha;
     }
 
-    const bool is_active =
-        true || curr_alpha < maxAnimation.value() && curr_alpha > 0.0f;
-
     static uint32_t frame = 0;
     frame++;
     clearLeds();
@@ -171,9 +174,6 @@ void loop() {
         }
         uint8_t alpha =
             fl::map_range<uint8_t>(i, 0.0f, number_of_steps - 1, 64, 255);
-        if (!is_active) {
-            alpha = 0;
-        }
         Tile2x2_u8 subpixel = shape->at_subpixel(a);
         subpixel.scale(alpha);
         // subpixels.push_back(subpixel);
@@ -182,8 +182,7 @@ void loop() {
 
     s_prev_alpha = curr_alpha;
 
-
-    if (useWaveFx && is_active) {
+    if (useWaveFx) {
         DrawRasterToWaveSimulator draw_wave_fx(&wave_fx);
         raster.draw(xyMap, draw_wave_fx);
     } else {

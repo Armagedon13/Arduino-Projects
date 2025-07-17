@@ -261,6 +261,8 @@ public:
     /*
      * Next 4 functions are also available as non member functions
      */
+    bool printIRResultShort(Print *aSerial, bool aPrintRepeatGap, bool aCheckForRecordGapsMicros)
+            __attribute__ ((deprecated ("Remove second parameter, it is not supported any more.")));
     bool printIRResultShort(Print *aSerial, bool aCheckForRecordGapsMicros = true);
     void printDistanceWidthTimingInfo(Print *aSerial, DistanceWidthTimingInfoStruct *aDistanceWidthTimingInfo);
     void printIRSendUsage(Print *aSerial);
@@ -664,7 +666,7 @@ public:
     void sendRC6(uint32_t data, uint8_t nbits) __attribute__ ((deprecated ("Please use sendRC6Raw().")));
     void sendRC6Raw(uint64_t data, uint8_t nbits);
     void sendRC6(uint64_t data, uint8_t nbits) __attribute__ ((deprecated ("Please use sendRC6Raw().")));
-    ;
+
     void sendSharpRaw(unsigned long data, int nbits);
     void sendSharp(uint16_t address, uint16_t command);
     void sendSAMSUNG(unsigned long data, int nbits);
@@ -674,7 +676,7 @@ public:
     void sendSony(unsigned long data,
             int nbits)
                     __attribute__ ((deprecated ("This old function sends MSB first! Please use sendSony(aAddress, aCommand, aNumberOfRepeats).")));
-    ;
+
     void sendWhynter(uint32_t aData, uint8_t aNumberOfBitsToSend);
 
 #if !defined(IR_SEND_PIN)
